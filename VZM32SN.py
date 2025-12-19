@@ -666,14 +666,137 @@ class InovelliVZM32SNMMWaveCluster(CustomCluster):
             type=t.uint32_t,
             is_manufacturer_specific=True,
         )
+        # Target tracking attributes (virtual - updated from command 0x01)
+        # Target 1
+        mmwave_target_1_x = ZCLAttributeDef(
+            id=0x0080,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_1_y = ZCLAttributeDef(
+            id=0x0081,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_1_z = ZCLAttributeDef(
+            id=0x0082,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_1_speed = ZCLAttributeDef(
+            id=0x0083,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_1_active = ZCLAttributeDef(
+            id=0x0084,
+            type=t.Bool,
+            is_manufacturer_specific=True,
+        )
+        # Target 2
+        mmwave_target_2_x = ZCLAttributeDef(
+            id=0x0085,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_2_y = ZCLAttributeDef(
+            id=0x0086,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_2_z = ZCLAttributeDef(
+            id=0x0087,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_2_speed = ZCLAttributeDef(
+            id=0x0088,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_2_active = ZCLAttributeDef(
+            id=0x0089,
+            type=t.Bool,
+            is_manufacturer_specific=True,
+        )
+        # Target 3
+        mmwave_target_3_x = ZCLAttributeDef(
+            id=0x008A,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_3_y = ZCLAttributeDef(
+            id=0x008B,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_3_z = ZCLAttributeDef(
+            id=0x008C,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_3_speed = ZCLAttributeDef(
+            id=0x008D,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_3_active = ZCLAttributeDef(
+            id=0x008E,
+            type=t.Bool,
+            is_manufacturer_specific=True,
+        )
+        # Target 4
+        mmwave_target_4_x = ZCLAttributeDef(
+            id=0x008F,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_4_y = ZCLAttributeDef(
+            id=0x0090,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_4_z = ZCLAttributeDef(
+            id=0x0091,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_4_speed = ZCLAttributeDef(
+            id=0x0092,
+            type=t.int16s,
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_4_active = ZCLAttributeDef(
+            id=0x0093,
+            type=t.Bool,
+            is_manufacturer_specific=True,
+        )
+        # Number of active targets
+        mmwave_target_count = ZCLAttributeDef(
+            id=0x0094,
+            type=t.uint8_t,
+            is_manufacturer_specific=True,
+        )
 
     class ServerCommandDefs(BaseCommandDefs):
         """Server command definitions."""
 
-        mmwave_control_command = ZCLCommandDef(
+        mmwave_presence_report = ZCLCommandDef(
             id=0x00,
             schema={
-                "control_id": t.uint8_t,
+                "area_status": t.uint8_t,  # Bitmask of presence in sub-areas
+            },
+            is_manufacturer_specific=True,
+        )
+        mmwave_target_report = ZCLCommandDef(
+            id=0x01,
+            schema={
+                "target_count": t.uint8_t,
+                "target_id": t.uint8_t,
+                "x": t.int16s,
+                "y": t.int16s,
+                "z": t.int16s,
+                "speed": t.int16s,
             },
             is_manufacturer_specific=True,
         )
@@ -694,6 +817,63 @@ class InovelliVZM32SNMMWaveCluster(CustomCluster):
             hdr.command_id,
             args,
         )
+
+        if hdr.command_id == self.ServerCommandDefs.mmwave_target_report.id:
+            # Update target tracking attributes from the report
+            target_count = getattr(args, 'target_count', 0)
+            target_id = getattr(args, 'target_id', 0)
+            x = getattr(args, 'x', 0)
+            y = getattr(args, 'y', 0)
+            z = getattr(args, 'z', 0)
+            speed = getattr(args, 'speed', 0)
+
+            _LOGGER.info(
+                "mmWave Target Report: count=%d, id=%d, x=%d, y=%d, z=%d, speed=%d",
+                target_count, target_id, x, y, z, speed
+            )
+
+            # Update the appropriate target attributes based on target_id (1-4)
+            if 1 <= target_id <= 4:
+                # Map target_id to attribute names
+                attr_prefix = f"mmwave_target_{target_id}"
+
+                # Update the virtual attributes
+                self._attr_cache[getattr(self.AttributeDefs, f"{attr_prefix}_x").id] = x
+                self._attr_cache[getattr(self.AttributeDefs, f"{attr_prefix}_y").id] = y
+                self._attr_cache[getattr(self.AttributeDefs, f"{attr_prefix}_z").id] = z
+                self._attr_cache[getattr(self.AttributeDefs, f"{attr_prefix}_speed").id] = speed
+                self._attr_cache[getattr(self.AttributeDefs, f"{attr_prefix}_active").id] = True
+
+                # Update target count
+                self._attr_cache[self.AttributeDefs.mmwave_target_count.id] = target_count
+
+                # Mark targets beyond count as inactive
+                for i in range(1, 5):
+                    if i > target_count:
+                        inactive_attr = getattr(self.AttributeDefs, f"mmwave_target_{i}_active")
+                        self._attr_cache[inactive_attr.id] = False
+
+                # Notify listeners of attribute updates
+                self.listener_event("attribute_updated", self.AttributeDefs.mmwave_target_count.id, target_count)
+
+            # Emit event for real-time tracking
+            event_args = {
+                "target_count": target_count,
+                "target_id": target_id,
+                "x": x,
+                "y": y,
+                "z": z,
+                "speed": speed,
+            }
+            self.listener_event(ZHA_SEND_EVENT, "mmwave_target_report", event_args)
+            return
+
+        if hdr.command_id == self.ServerCommandDefs.mmwave_presence_report.id:
+            area_status = getattr(args, 'area_status', 0)
+            _LOGGER.debug("mmWave Presence Report: area_status=%d", area_status)
+            event_args = {"area_status": area_status}
+            self.listener_event(ZHA_SEND_EVENT, "mmwave_presence_report", event_args)
+            return
 
 
 INOVELLI_AUTOMATION_TRIGGERS = {
@@ -906,6 +1086,158 @@ INOVELLI_AUTOMATION_TRIGGERS = {
         entity_type=EntityType.CONFIG,
         translation_key="mmwave_hold_time",
         fallback_name="mmWave hold time",
+    )
+    # Target tracking sensors
+    .sensor(
+        "mmwave_target_count",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_count",
+        fallback_name="mmWave Target Count",
+    )
+    # Target 1
+    .sensor(
+        "mmwave_target_1_x",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_1_x",
+        fallback_name="mmWave Target 1 X",
+    )
+    .sensor(
+        "mmwave_target_1_y",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_1_y",
+        fallback_name="mmWave Target 1 Y",
+    )
+    .sensor(
+        "mmwave_target_1_z",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_1_z",
+        fallback_name="mmWave Target 1 Z",
+    )
+    .sensor(
+        "mmwave_target_1_speed",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_1_speed",
+        fallback_name="mmWave Target 1 Speed",
+    )
+    .binary_sensor(
+        "mmwave_target_1_active",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_1_active",
+        fallback_name="mmWave Target 1 Active",
+    )
+    # Target 2
+    .sensor(
+        "mmwave_target_2_x",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_2_x",
+        fallback_name="mmWave Target 2 X",
+    )
+    .sensor(
+        "mmwave_target_2_y",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_2_y",
+        fallback_name="mmWave Target 2 Y",
+    )
+    .sensor(
+        "mmwave_target_2_z",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_2_z",
+        fallback_name="mmWave Target 2 Z",
+    )
+    .sensor(
+        "mmwave_target_2_speed",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_2_speed",
+        fallback_name="mmWave Target 2 Speed",
+    )
+    .binary_sensor(
+        "mmwave_target_2_active",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_2_active",
+        fallback_name="mmWave Target 2 Active",
+    )
+    # Target 3
+    .sensor(
+        "mmwave_target_3_x",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_3_x",
+        fallback_name="mmWave Target 3 X",
+    )
+    .sensor(
+        "mmwave_target_3_y",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_3_y",
+        fallback_name="mmWave Target 3 Y",
+    )
+    .sensor(
+        "mmwave_target_3_z",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_3_z",
+        fallback_name="mmWave Target 3 Z",
+    )
+    .sensor(
+        "mmwave_target_3_speed",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_3_speed",
+        fallback_name="mmWave Target 3 Speed",
+    )
+    .binary_sensor(
+        "mmwave_target_3_active",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_3_active",
+        fallback_name="mmWave Target 3 Active",
+    )
+    # Target 4
+    .sensor(
+        "mmwave_target_4_x",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_4_x",
+        fallback_name="mmWave Target 4 X",
+    )
+    .sensor(
+        "mmwave_target_4_y",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_4_y",
+        fallback_name="mmWave Target 4 Y",
+    )
+    .sensor(
+        "mmwave_target_4_z",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_4_z",
+        fallback_name="mmWave Target 4 Z",
+    )
+    .sensor(
+        "mmwave_target_4_speed",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_4_speed",
+        fallback_name="mmWave Target 4 Speed",
+    )
+    .binary_sensor(
+        "mmwave_target_4_active",
+        MMWAVE_CLUSTER_ID,
+        entity_type=EntityType.STANDARD,
+        translation_key="mmwave_target_4_active",
+        fallback_name="mmWave Target 4 Active",
     )
     .add_to_registry()
 )

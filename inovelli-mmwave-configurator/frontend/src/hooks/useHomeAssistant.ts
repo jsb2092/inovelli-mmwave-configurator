@@ -33,12 +33,13 @@ const ENTITY_PATTERNS = {
 };
 
 // Target tracking entity patterns (supports up to 4 targets)
+// Matches entities like: sensor.device_mmwave_target_1_x, binary_sensor.device_mmwave_target_1_active
 const TARGET_PATTERNS = {
-  x: /_target_(\d+)_x$/,
-  y: /_target_(\d+)_y$/,
-  z: /_target_(\d+)_z$/,
-  speed: /_target_(\d+)_speed$/,
-  active: /_target_(\d+)_active$/,
+  x: /_mmwave_target_(\d+)_x$/,
+  y: /_mmwave_target_(\d+)_y$/,
+  z: /_mmwave_target_(\d+)_z$/,
+  speed: /_mmwave_target_(\d+)_speed$/,
+  active: /_mmwave_target_(\d+)_active$/,
 };
 
 export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
@@ -168,9 +169,13 @@ export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
       console.log('Device-related entities:', deviceRelated.map(e => e.entity_id));
 
       // Find mmWave entities - look for any entity containing 'mmwave'
+      // Include number, sensor, and binary_sensor entities for target tracking
       const mmwaveEntities = states.filter(
         (state) =>
-          state.entity_id.toLowerCase().includes('mmwave')
+          state.entity_id.toLowerCase().includes('mmwave') &&
+          (state.entity_id.startsWith('number.') ||
+           state.entity_id.startsWith('sensor.') ||
+           state.entity_id.startsWith('binary_sensor.'))
       );
       console.log('mmWave entities:', mmwaveEntities.map(e => e.entity_id));
 
