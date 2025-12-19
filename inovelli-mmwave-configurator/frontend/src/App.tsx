@@ -141,6 +141,32 @@ function App() {
             sensorX: roomData.sensor_x,
             sensorHeight: roomData.sensor_height,
           });
+          if (roomData.obstacles) {
+            setObstacles(roomData.obstacles.map(o => ({
+              id: `obstacle-${o.id}`,
+              type: o.type as 'wall' | 'exclusion',
+              name: o.name,
+              x1: o.x1,
+              y1: o.y1,
+              x2: o.x2,
+              y2: o.y2,
+              zMin: o.z_min,
+              zMax: o.z_max,
+            })));
+          }
+          if (roomData.furniture) {
+            setFurniture(roomData.furniture.map(f => ({
+              id: `furniture-${f.id}`,
+              type: f.type as FurnitureItem['type'],
+              name: f.name,
+              x: f.x,
+              y: f.y,
+              width: f.width,
+              depth: f.depth,
+              height: f.height,
+              rotation: f.rotation,
+            })));
+          }
         }
       } else {
         // Create a default room
@@ -174,6 +200,7 @@ function App() {
   const saveRoomToDb = useCallback(async () => {
     if (!currentRoomId) return;
     await saveRoom(currentRoomId, {
+      name: 'Room', // TODO: Add room name editing
       width: room.width,
       depth: room.depth,
       height: room.height,
