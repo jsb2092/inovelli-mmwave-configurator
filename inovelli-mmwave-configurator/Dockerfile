@@ -19,9 +19,11 @@ RUN cp -r /app/dist/* /var/www/html/
 # Configure nginx
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Create s6-overlay service directory
-RUN mkdir -p /etc/services.d/nginx
+# s6-overlay v3 service structure
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/nginx
+RUN mkdir -p /etc/s6-overlay/s6-rc.d/user/contents.d
 
-# Copy run script for s6
-COPY run.sh /etc/services.d/nginx/run
-RUN chmod a+x /etc/services.d/nginx/run
+COPY run.sh /etc/s6-overlay/s6-rc.d/nginx/run
+RUN chmod a+x /etc/s6-overlay/s6-rc.d/nginx/run
+RUN echo "longrun" > /etc/s6-overlay/s6-rc.d/nginx/type
+RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/nginx
