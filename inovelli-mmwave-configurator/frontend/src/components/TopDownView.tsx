@@ -45,6 +45,7 @@ export function TopDownView({
   }, [room.width, room.depth]);
 
   // Convert room-relative cm to canvas pixels (x is relative to sensor)
+  // X axis is mirrored so sensor's left (negative X) appears on viewer's right
   const cmToCanvas = useCallback((x: number, y: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { cx: 0, cy: 0 };
@@ -52,12 +53,12 @@ export function TopDownView({
     const roomWidthPx = room.width * scale;
     const offsetX = (canvas.width - roomWidthPx) / 2;
     return {
-      cx: offsetX + (room.sensorX + x) * scale,
+      cx: offsetX + (room.width - room.sensorX - x) * scale,
       cy: padding + y * scale,
     };
   }, [room.width, room.sensorX, getScale]);
 
-  // Convert room-absolute cm to canvas pixels
+  // Convert room-absolute cm to canvas pixels (mirrored X)
   const absToCanvas = useCallback((x: number, y: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { cx: 0, cy: 0 };
@@ -65,7 +66,7 @@ export function TopDownView({
     const roomWidthPx = room.width * scale;
     const offsetX = (canvas.width - roomWidthPx) / 2;
     return {
-      cx: offsetX + x * scale,
+      cx: offsetX + (room.width - x) * scale,
       cy: padding + y * scale,
     };
   }, [room.width, getScale]);
@@ -76,13 +77,14 @@ export function TopDownView({
     const scale = getScale();
     const roomWidthPx = room.width * scale;
     const offsetX = (canvas.width - roomWidthPx) / 2;
+    // Inverse of mirrored transform
     return {
-      x: (cx - offsetX) / scale - room.sensorX,
+      x: room.width - room.sensorX - (cx - offsetX) / scale,
       y: (cy - padding) / scale,
     };
   }, [room.width, room.sensorX, getScale]);
 
-  // Convert canvas to absolute room coordinates
+  // Convert canvas to absolute room coordinates (mirrored X)
   const canvasToAbs = useCallback((cx: number, cy: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -90,7 +92,7 @@ export function TopDownView({
     const roomWidthPx = room.width * scale;
     const offsetX = (canvas.width - roomWidthPx) / 2;
     return {
-      x: (cx - offsetX) / scale,
+      x: room.width - (cx - offsetX) / scale,
       y: (cy - padding) / scale,
     };
   }, [room.width, getScale]);
