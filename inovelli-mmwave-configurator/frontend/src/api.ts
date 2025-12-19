@@ -1,6 +1,7 @@
 // API helper for communicating with the backend
 
-const API_BASE = '/api';
+// Use relative path for Home Assistant ingress compatibility
+const API_BASE = './api';
 
 export async function getSetting<T>(key: string): Promise<T | null> {
   try {
