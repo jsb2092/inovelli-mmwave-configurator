@@ -18,6 +18,7 @@ RUN cp -r /app/dist/* /var/www/html/
 # Cleanup build files
 RUN rm -rf /app
 
-# Copy rootfs
-COPY rootfs /
-RUN chmod a+x /etc/s6-overlay/s6-rc.d/nginx/run
+# Copy nginx config
+COPY rootfs/etc/nginx/http.d/default.conf /etc/nginx/http.d/default.conf
+
+CMD ["nginx", "-g", "daemon off;"]
