@@ -152,24 +152,31 @@ export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
 
     setIsLoading(true);
     try {
-      // Get all states
-      const states = (await sendMessage({ type: 'get_states' })) as HAEntityState[];
+      // Get all states, entity registry, device registry, and area registry in parallel
+      const [states, entityRegistry, deviceRegistry, areaRegistry] = await Promise.all([
+        sendMessage({ type: 'get_states' }) as Promise<HAEntityState[]>,
+        sendMessage({ type: 'config/entity_registry/list' }) as Promise<Array<{ entity_id: string; device_id: string | null }>>,
+        sendMessage({ type: 'config/device_registry/list' }) as Promise<Array<{ id: string; area_id: string | null; name: string }>>,
+        sendMessage({ type: 'config/area_registry/list' }) as Promise<Array<{ area_id: string; name: string }>>,
+      ]);
 
-      // Debug: log all number entities to see what's available
-      const allNumberEntities = states.filter(
-        (state) => state.entity_id.startsWith('number.')
-      );
-      console.log('All number entities:', allNumberEntities.map(e => e.entity_id));
+      // Build lookup maps
+      const entityToDevice = new Map<string, string>();
+      entityRegistry.forEach(e => {
+        if (e.device_id) entityToDevice.set(e.entity_id, e.device_id);
+      });
 
-      // Also search for anything with "landing" or "motion" (from user's device name)
-      const deviceRelated = states.filter(
-        (state) => state.entity_id.toLowerCase().includes('landing') ||
-                   state.entity_id.toLowerCase().includes('motion')
-      );
-      console.log('Device-related entities:', deviceRelated.map(e => e.entity_id));
+      const deviceToArea = new Map<string, string>();
+      const deviceNames = new Map<string, string>();
+      deviceRegistry.forEach(d => {
+        if (d.area_id) deviceToArea.set(d.id, d.area_id);
+        deviceNames.set(d.id, d.name);
+      });
 
-      // Find mmWave entities - look for any entity containing 'mmwave'
-      // Include number, sensor, and binary_sensor entities for target tracking
+      const areaNames = new Map<string, string>();
+      areaRegistry.forEach(a => areaNames.set(a.area_id, a.name));
+
+      // Find mmWave entities
       const mmwaveEntities = states.filter(
         (state) =>
           state.entity_id.toLowerCase().includes('mmwave') &&
@@ -177,7 +184,6 @@ export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
            state.entity_id.startsWith('sensor.') ||
            state.entity_id.startsWith('binary_sensor.'))
       );
-      console.log('mmWave entities:', mmwaveEntities.map(e => e.entity_id));
 
       // Update entity states
       const newStates = new Map<string, HAEntityState>();
@@ -196,9 +202,16 @@ export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
 
         const deviceName = match[1];
         if (!deviceMap.has(deviceName)) {
+          // Try to get the area name from HA registries
+          const haDeviceId = entityToDevice.get(state.entity_id);
+          const areaId = haDeviceId ? deviceToArea.get(haDeviceId) : null;
+          const areaName = areaId ? areaNames.get(areaId) : null;
+          const haDeviceName = haDeviceId ? deviceNames.get(haDeviceId) : null;
+
           deviceMap.set(deviceName, {
             id: deviceName,
-            name: deviceName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+            name: haDeviceName || deviceName.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+            areaName: areaName || undefined,
             entities: {
               xMin: '',
               xMax: '',

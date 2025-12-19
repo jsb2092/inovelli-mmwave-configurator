@@ -30,7 +30,7 @@ export interface DeviceConfig {
 export interface HADevice {
   id: string;
   name: string;
-  area?: string;
+  areaName?: string;  // Room/area name from Home Assistant
   entities: {
     xMin: string;
     xMax: string;

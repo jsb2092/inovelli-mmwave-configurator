@@ -39,7 +39,7 @@ export function DeviceSelector({
               {devices.map((device) => (
                 <option key={device.id} value={device.id}>
                   {device.name}
-                  {device.area ? ` (${device.area})` : ''}
+                  {device.areaName ? ` (${device.areaName})` : ''}
                 </option>
               ))}
             </>
