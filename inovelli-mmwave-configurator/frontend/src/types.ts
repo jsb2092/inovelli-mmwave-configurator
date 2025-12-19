@@ -53,6 +53,19 @@ export interface HAEntityState {
 export const SENSITIVITY_LABELS = ['Low', 'Medium', 'High'] as const;
 export const DELAY_LABELS = ['5s', '1s', '0.2s'] as const;
 
+export type UnitSystem = 'metric' | 'imperial';
+
+// Conversion helpers
+export const CM_PER_INCH = 2.54;
+
+export function cmToInches(cm: number): number {
+  return cm / CM_PER_INCH;
+}
+
+export function inchesToCm(inches: number): number {
+  return inches * CM_PER_INCH;
+}
+
 export const DEFAULT_ROOM: RoomDimensions = {
   width: 400,
   depth: 500,

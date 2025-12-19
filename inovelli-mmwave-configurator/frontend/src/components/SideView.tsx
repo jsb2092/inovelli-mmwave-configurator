@@ -1,15 +1,18 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { RoomDimensions, ZoneBounds } from '../types';
+import { RoomDimensions, ZoneBounds, UnitSystem, cmToInches } from '../types';
 
 interface SideViewProps {
   room: RoomDimensions;
   zone: ZoneBounds;
   onZoneChange: (zone: ZoneBounds) => void;
+  units: UnitSystem;
 }
 
 type DragHandle = 'left' | 'right' | 'top' | 'bottom' | 'move' | null;
 
-export function SideView({ room, zone, onZoneChange }: SideViewProps) {
+export function SideView({ room, zone, onZoneChange, units }: SideViewProps) {
+  const isImperial = units === 'imperial';
+  const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm)) : cm;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dragHandle, setDragHandle] = useState<DragHandle>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -146,7 +149,7 @@ export function SideView({ room, zone, onZoneChange }: SideViewProps) {
     ctx.textAlign = 'center';
     for (let y = 0; y <= room.depth; y += gridStep) {
       const { cx } = cmToCanvas(y, 0);
-      ctx.fillText(`${y}`, cx, offsetY + roomHeightPx + 16);
+      ctx.fillText(`${toDisplay(y)}`, cx, offsetY + roomHeightPx + 16);
     }
 
     // Height labels (left side)
@@ -154,14 +157,15 @@ export function SideView({ room, zone, onZoneChange }: SideViewProps) {
     for (let z = 0; z <= room.height; z += gridStep) {
       const { cy } = cmToCanvas(0, z - room.sensorHeight);
       const label = z - room.sensorHeight;
-      ctx.fillText(`${label >= 0 ? '+' : ''}${label}`, padding - 8, cy + 4);
+      const displayLabel = toDisplay(label);
+      ctx.fillText(`${displayLabel >= 0 ? '+' : ''}${displayLabel}`, padding - 8, cy + 4);
     }
 
     // Sensor label
     ctx.textAlign = 'left';
     ctx.fillStyle = '#f59e0b';
     ctx.fillText('sensor', sensorPos.cx + 12, sensorPos.cy + 4);
-  }, [room, zone, getScale, cmToCanvas]);
+  }, [room, zone, getScale, cmToCanvas, toDisplay]);
 
   useEffect(() => {
     draw();

@@ -1,15 +1,18 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { RoomDimensions, ZoneBounds } from '../types';
+import { RoomDimensions, ZoneBounds, UnitSystem, cmToInches } from '../types';
 
 interface TopDownViewProps {
   room: RoomDimensions;
   zone: ZoneBounds;
   onZoneChange: (zone: ZoneBounds) => void;
+  units: UnitSystem;
 }
 
 type DragHandle = 'left' | 'right' | 'top' | 'bottom' | 'move' | null;
 
-export function TopDownView({ room, zone, onZoneChange }: TopDownViewProps) {
+export function TopDownView({ room, zone, onZoneChange, units }: TopDownViewProps) {
+  const isImperial = units === 'imperial';
+  const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm)) : cm;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [dragHandle, setDragHandle] = useState<DragHandle>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -141,16 +144,16 @@ export function TopDownView({ room, zone, onZoneChange }: TopDownViewProps) {
     for (let x = 0; x <= room.width; x += gridStep) {
       const relativeX = x - room.sensorX;
       const { cx } = cmToCanvas(relativeX, 0);
-      ctx.fillText(`${relativeX}`, cx, padding - 8);
+      ctx.fillText(`${toDisplay(relativeX)}`, cx, padding - 8);
     }
 
     // Depth labels
     ctx.textAlign = 'right';
     for (let y = 0; y <= room.depth; y += gridStep) {
       const { cy } = cmToCanvas(0, y);
-      ctx.fillText(`${y}`, offsetX - 8, cy + 4);
+      ctx.fillText(`${toDisplay(y)}`, offsetX - 8, cy + 4);
     }
-  }, [room, zone, getScale, cmToCanvas]);
+  }, [room, zone, getScale, cmToCanvas, toDisplay]);
 
   useEffect(() => {
     draw();

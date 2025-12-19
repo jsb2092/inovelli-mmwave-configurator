@@ -10,6 +10,7 @@ import {
   ZoneBounds,
   DetectionSettings,
   HADevice,
+  UnitSystem,
   DEFAULT_ROOM,
   DEFAULT_ZONE,
   DEFAULT_DETECTION,
@@ -37,6 +38,9 @@ function App() {
   const [zone, setZone] = useState<ZoneBounds>(DEFAULT_ZONE);
   const [detection, setDetection] = useState<DetectionSettings>(DEFAULT_DETECTION);
   const [selectedDevice, setSelectedDevice] = useState<HADevice | null>(null);
+  const [units, setUnits] = useState<UnitSystem>(() => {
+    return (localStorage.getItem('units') as UnitSystem) || 'imperial';
+  });
 
   // Home Assistant connection
   const {
@@ -59,6 +63,11 @@ function App() {
     localStorage.setItem('ha_url', haUrl);
     localStorage.setItem('ha_token', haToken);
   }, [haUrl, haToken]);
+
+  // Save units preference
+  useEffect(() => {
+    localStorage.setItem('units', units);
+  }, [units]);
 
   // Auto-connect on load if we have credentials
   useEffect(() => {
@@ -107,31 +116,56 @@ function App() {
           <h1 className="text-xl font-bold text-white">
             Inovelli mmWave Zone Configurator
           </h1>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 bg-slate-700 rounded hover:bg-slate-600 transition-colors"
-            title="Settings"
-          >
-            <svg
-              className="w-5 h-5 text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center gap-3">
+            {/* Unit Toggle */}
+            <div className="flex bg-slate-700 rounded overflow-hidden">
+              <button
+                onClick={() => setUnits('imperial')}
+                className={`px-3 py-1.5 text-sm transition-colors ${
+                  units === 'imperial'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                in
+              </button>
+              <button
+                onClick={() => setUnits('metric')}
+                className={`px-3 py-1.5 text-sm transition-colors ${
+                  units === 'metric'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                cm
+              </button>
+            </div>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 bg-slate-700 rounded hover:bg-slate-600 transition-colors"
+              title="Settings"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </button>
+              <svg
+                className="w-5 h-5 text-slate-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Settings Panel */}
@@ -222,19 +256,20 @@ function App() {
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Canvas Views */}
-          <TopDownView room={room} zone={zone} onZoneChange={setZone} />
-          <SideView room={room} zone={zone} onZoneChange={setZone} />
+          <TopDownView room={room} zone={zone} onZoneChange={setZone} units={units} />
+          <SideView room={room} zone={zone} onZoneChange={setZone} units={units} />
         </div>
 
         {/* Controls */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <RoomSetup room={room} onChange={setRoom} />
+          <RoomSetup room={room} onChange={setRoom} units={units} />
           <div className="md:col-span-2">
             <ZoneControls
               zone={zone}
               detection={detection}
               onZoneChange={setZone}
               onDetectionChange={setDetection}
+              units={units}
             />
           </div>
         </div>
