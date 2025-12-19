@@ -93,16 +93,7 @@ export function TopDownView({ room, zone, onZoneChange, units }: TopDownViewProp
       ctx.stroke();
     }
 
-    // Draw sensor FOV cone (approximately 100 degrees)
     const sensorPos = cmToCanvas(0, 0);
-    const fovAngle = (100 * Math.PI) / 180;
-    const fovLength = room.depth * scale;
-    ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
-    ctx.beginPath();
-    ctx.moveTo(sensorPos.cx, sensorPos.cy);
-    ctx.arc(sensorPos.cx, sensorPos.cy, fovLength, Math.PI / 2 - fovAngle / 2, Math.PI / 2 + fovAngle / 2);
-    ctx.closePath();
-    ctx.fill();
 
     // Draw detection zone
     const zoneLeft = cmToCanvas(zone.xMin, zone.yMin);
@@ -135,6 +126,17 @@ export function TopDownView({ room, zone, onZoneChange, units }: TopDownViewProp
     ctx.arc(sensorPos.cx, sensorPos.cy, sensorSize, 0, Math.PI * 2);
     ctx.fill();
 
+    // Draw sensor direction arrow
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(sensorPos.cx, sensorPos.cy + 5);
+    ctx.lineTo(sensorPos.cx, sensorPos.cy + 25);
+    ctx.lineTo(sensorPos.cx - 6, sensorPos.cy + 18);
+    ctx.moveTo(sensorPos.cx, sensorPos.cy + 25);
+    ctx.lineTo(sensorPos.cx + 6, sensorPos.cy + 18);
+    ctx.stroke();
+
     // Labels
     ctx.fillStyle = '#94a3b8';
     ctx.font = '11px sans-serif';
@@ -153,6 +155,14 @@ export function TopDownView({ room, zone, onZoneChange, units }: TopDownViewProp
       const { cy } = cmToCanvas(0, y);
       ctx.fillText(`${toDisplay(y)}`, offsetX - 8, cy + 4);
     }
+
+    // Direction labels (from switch's perspective)
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText("Switch's Left", offsetX + 4, padding + roomDepthPx - 4);
+    ctx.textAlign = 'right';
+    ctx.fillText("Switch's Right", offsetX + roomWidthPx - 4, padding + roomDepthPx - 4);
   }, [room, zone, getScale, cmToCanvas, toDisplay]);
 
   useEffect(() => {
