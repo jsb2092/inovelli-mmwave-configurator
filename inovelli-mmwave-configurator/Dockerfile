@@ -19,8 +19,9 @@ RUN cp -r /app/dist/* /var/www/html/
 # Configure nginx
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Copy run script
-COPY run.sh /
-RUN chmod a+x /run.sh
+# Create s6-overlay service directory
+RUN mkdir -p /etc/services.d/nginx
 
-CMD [ "/run.sh" ]
+# Copy run script for s6
+COPY run.sh /etc/services.d/nginx/run
+RUN chmod a+x /etc/services.d/nginx/run

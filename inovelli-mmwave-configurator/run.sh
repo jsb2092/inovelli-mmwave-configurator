@@ -1,6 +1,5 @@
-#!/usr/bin/with-contenv bashio
+#!/usr/bin/with-contenv bash
 
-bashio::log.info "Starting Inovelli mmWave Zone Configurator..."
+echo "Starting Inovelli mmWave Zone Configurator..."
 
-# Start nginx
-nginx -g "daemon off;"
+exec nginx -g "daemon off;"
