@@ -19,16 +19,16 @@ interface HAMessage {
   };
 }
 
-// Entity name patterns for VZM32-SN mmWave attributes
+// Entity name patterns for VZM32-SN mmWave attributes (from ZHA quirk)
 const ENTITY_PATTERNS = {
-  xMin: /_mmwave_width_minimum_left$/,
-  xMax: /_mmwave_width_maximum_right$/,
-  yMin: /_mmwave_depth_minimum_near$/,
-  yMax: /_mmwave_depth_maximum_far$/,
-  zMin: /_mmwave_height_minimum_floor$/,
-  zMax: /_mmwave_height_maximum_ceiling$/,
-  sensitivity: /_mmwave_detection_sensitivity$/,
-  delay: /_mmwave_detection_delay$/,
+  xMin: /_mmwave_x_min$/,
+  xMax: /_mmwave_x_max$/,
+  yMin: /_mmwave_y_min$/,
+  yMax: /_mmwave_y_max$/,
+  zMin: /_mmwave_z_min$/,
+  zMax: /_mmwave_z_max$/,
+  sensitivity: /_mmwave_detect_sensitivity$/,
+  delay: /_mmwave_detect_trigger$/,
   holdTime: /_mmwave_hold_time$/,
 };
 
