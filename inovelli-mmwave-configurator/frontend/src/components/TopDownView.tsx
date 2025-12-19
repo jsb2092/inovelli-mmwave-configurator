@@ -9,20 +9,32 @@ interface TopDownViewProps {
   targets?: Target[];
   obstacles?: RoomObstacle[];
   furniture?: FurnitureItem[];
+  onObstaclesChange?: (obstacles: RoomObstacle[]) => void;
+  onFurnitureChange?: (furniture: FurnitureItem[]) => void;
 }
 
-type DragHandle = 'left' | 'right' | 'top' | 'bottom' | 'move' | null;
+type DragType =
+  | { type: 'zone'; handle: 'left' | 'right' | 'top' | 'bottom' | 'move' }
+  | { type: 'obstacle'; id: string; handle: 'move' | 'nw' | 'ne' | 'sw' | 'se' }
+  | { type: 'furniture'; id: string }
+  | null;
 
-export function TopDownView({ room, zone, onZoneChange, units, targets = [], obstacles = [], furniture = [] }: TopDownViewProps) {
+export function TopDownView({
+  room, zone, onZoneChange, units, targets = [], obstacles = [], furniture = [],
+  onObstaclesChange, onFurnitureChange
+}: TopDownViewProps) {
   const isImperial = units === 'imperial';
   const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm)) : cm;
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [dragHandle, setDragHandle] = useState<DragHandle>(null);
+  const [dragType, setDragType] = useState<DragType>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [initialZone, setInitialZone] = useState<ZoneBounds | null>(null);
+  const [initialObstacle, setInitialObstacle] = useState<RoomObstacle | null>(null);
+  const [initialFurniture, setInitialFurniture] = useState<FurnitureItem | null>(null);
 
   const padding = 40;
   const sensorSize = 8;
+  const handleSize = 8;
 
   const getScale = useCallback(() => {
     const canvas = canvasRef.current;
@@ -32,18 +44,31 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
     return Math.min(availableWidth / room.width, availableHeight / room.depth);
   }, [room.width, room.depth]);
 
+  // Convert room-relative cm to canvas pixels (x is relative to sensor)
   const cmToCanvas = useCallback((x: number, y: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { cx: 0, cy: 0 };
     const scale = getScale();
     const roomWidthPx = room.width * scale;
     const offsetX = (canvas.width - roomWidthPx) / 2;
-    // x is relative to sensor position, room.sensorX is sensor distance from left wall
     return {
       cx: offsetX + (room.sensorX + x) * scale,
       cy: padding + y * scale,
     };
   }, [room.width, room.sensorX, getScale]);
+
+  // Convert room-absolute cm to canvas pixels
+  const absToCanvas = useCallback((x: number, y: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { cx: 0, cy: 0 };
+    const scale = getScale();
+    const roomWidthPx = room.width * scale;
+    const offsetX = (canvas.width - roomWidthPx) / 2;
+    return {
+      cx: offsetX + x * scale,
+      cy: padding + y * scale,
+    };
+  }, [room.width, getScale]);
 
   const canvasToCm = useCallback((cx: number, cy: number) => {
     const canvas = canvasRef.current;
@@ -56,6 +81,19 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
       y: (cy - padding) / scale,
     };
   }, [room.width, room.sensorX, getScale]);
+
+  // Convert canvas to absolute room coordinates
+  const canvasToAbs = useCallback((cx: number, cy: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const scale = getScale();
+    const roomWidthPx = room.width * scale;
+    const offsetX = (canvas.width - roomWidthPx) / 2;
+    return {
+      x: (cx - offsetX) / scale,
+      y: (cy - padding) / scale,
+    };
+  }, [room.width, getScale]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -80,7 +118,7 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
     // Draw grid
     ctx.strokeStyle = '#2d3748';
     ctx.lineWidth = 1;
-    const gridStep = 100; // 100cm grid
+    const gridStep = 100;
     for (let x = gridStep; x < room.width; x += gridStep) {
       const { cx } = cmToCanvas(x - room.width / 2, 0);
       ctx.beginPath();
@@ -110,25 +148,19 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
     ctx.lineWidth = 2;
     ctx.strokeRect(zoneLeft.cx, zoneLeft.cy, zoneWidth, zoneHeight);
 
-    // Draw drag handles
-    const handleSize = 8;
+    // Draw zone drag handles
     ctx.fillStyle = '#10b981';
-
-    // Left handle
     ctx.fillRect(zoneLeft.cx - handleSize / 2, (zoneLeft.cy + zoneRight.cy) / 2 - handleSize / 2, handleSize, handleSize);
-    // Right handle
     ctx.fillRect(zoneRight.cx - handleSize / 2, (zoneLeft.cy + zoneRight.cy) / 2 - handleSize / 2, handleSize, handleSize);
-    // Top handle (near)
     ctx.fillRect((zoneLeft.cx + zoneRight.cx) / 2 - handleSize / 2, zoneLeft.cy - handleSize / 2, handleSize, handleSize);
-    // Bottom handle (far)
     ctx.fillRect((zoneLeft.cx + zoneRight.cx) / 2 - handleSize / 2, zoneRight.cy - handleSize / 2, handleSize, handleSize);
 
-    // Draw obstacles (walls, exclusion zones)
+    // Draw obstacles with resize handles
     obstacles.forEach((obstacle) => {
-      const obstaclePos1 = cmToCanvas(obstacle.x1 - room.sensorX, obstacle.y1);
-      const obstaclePos2 = cmToCanvas(obstacle.x2 - room.sensorX, obstacle.y2);
-      const obstacleWidth = obstaclePos2.cx - obstaclePos1.cx;
-      const obstacleHeight = obstaclePos2.cy - obstaclePos1.cy;
+      const pos1 = absToCanvas(obstacle.x1, obstacle.y1);
+      const pos2 = absToCanvas(obstacle.x2, obstacle.y2);
+      const w = pos2.cx - pos1.cx;
+      const h = pos2.cy - pos1.cy;
 
       if (obstacle.type === 'wall') {
         ctx.fillStyle = 'rgba(100, 116, 139, 0.7)';
@@ -138,20 +170,28 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
         ctx.strokeStyle = '#ef4444';
       }
       ctx.lineWidth = 2;
-      ctx.fillRect(obstaclePos1.cx, obstaclePos1.cy, obstacleWidth, obstacleHeight);
-      ctx.strokeRect(obstaclePos1.cx, obstaclePos1.cy, obstacleWidth, obstacleHeight);
+      ctx.fillRect(pos1.cx, pos1.cy, w, h);
+      ctx.strokeRect(pos1.cx, pos1.cy, w, h);
+
+      // Resize handles (corners)
+      const handleColor = obstacle.type === 'wall' ? '#94a3b8' : '#fca5a5';
+      ctx.fillStyle = handleColor;
+      ctx.fillRect(pos1.cx - handleSize / 2, pos1.cy - handleSize / 2, handleSize, handleSize); // NW
+      ctx.fillRect(pos2.cx - handleSize / 2, pos1.cy - handleSize / 2, handleSize, handleSize); // NE
+      ctx.fillRect(pos1.cx - handleSize / 2, pos2.cy - handleSize / 2, handleSize, handleSize); // SW
+      ctx.fillRect(pos2.cx - handleSize / 2, pos2.cy - handleSize / 2, handleSize, handleSize); // SE
 
       // Label
-      ctx.fillStyle = obstacle.type === 'wall' ? '#94a3b8' : '#fca5a5';
+      ctx.fillStyle = handleColor;
       ctx.font = '9px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(obstacle.name, obstaclePos1.cx + obstacleWidth / 2, obstaclePos1.cy + obstacleHeight / 2 + 3);
+      ctx.fillText(obstacle.name, pos1.cx + w / 2, pos1.cy + h / 2 + 3);
     });
 
-    // Draw furniture
+    // Draw furniture with drag indicator
     furniture.forEach((item) => {
       const rad = (item.rotation * Math.PI) / 180;
-      const itemCenter = cmToCanvas(item.x - room.sensorX, item.y);
+      const itemCenter = absToCanvas(item.x, item.y);
 
       ctx.save();
       ctx.translate(itemCenter.cx, itemCenter.cy);
@@ -160,19 +200,23 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
       const itemWidthPx = item.width * scale;
       const itemDepthPx = item.depth * scale;
 
-      // Furniture body
       ctx.fillStyle = 'rgba(139, 92, 246, 0.4)';
       ctx.strokeStyle = '#8b5cf6';
       ctx.lineWidth = 2;
       ctx.fillRect(-itemWidthPx / 2, -itemDepthPx / 2, itemWidthPx, itemDepthPx);
       ctx.strokeRect(-itemWidthPx / 2, -itemDepthPx / 2, itemWidthPx, itemDepthPx);
 
-      // Furniture icon/label
+      // Move handle in center
+      ctx.fillStyle = '#a78bfa';
+      ctx.beginPath();
+      ctx.arc(0, 0, 6, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.rotate(-rad);
       ctx.fillStyle = '#c4b5fd';
       ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(item.name || item.type, 0, 3);
+      ctx.fillText(item.name || item.type, 0, -8);
 
       ctx.restore();
     });
@@ -180,12 +224,7 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
     // Draw detected targets
     targets.forEach((target) => {
       const targetPos = cmToCanvas(target.x, target.y);
-
-      // Outer glow
-      const gradient = ctx.createRadialGradient(
-        targetPos.cx, targetPos.cy, 0,
-        targetPos.cx, targetPos.cy, 20
-      );
+      const gradient = ctx.createRadialGradient(targetPos.cx, targetPos.cy, 0, targetPos.cx, targetPos.cy, 20);
       gradient.addColorStop(0, 'rgba(34, 197, 94, 0.6)');
       gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
       ctx.fillStyle = gradient;
@@ -193,13 +232,11 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
       ctx.arc(targetPos.cx, targetPos.cy, 20, 0, Math.PI * 2);
       ctx.fill();
 
-      // Target point
       ctx.fillStyle = '#22c55e';
       ctx.beginPath();
       ctx.arc(targetPos.cx, targetPos.cy, 6, 0, Math.PI * 2);
       ctx.fill();
 
-      // Target ID
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 9px sans-serif';
       ctx.textAlign = 'center';
@@ -212,7 +249,6 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
     ctx.arc(sensorPos.cx, sensorPos.cy, sensorSize, 0, Math.PI * 2);
     ctx.fill();
 
-    // Draw sensor direction arrow
     ctx.strokeStyle = '#f59e0b';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -227,53 +263,96 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
     ctx.fillStyle = '#94a3b8';
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
-
-    // Width labels (relative to sensor position)
     for (let x = 0; x <= room.width; x += gridStep) {
       const relativeX = x - room.sensorX;
       const { cx } = cmToCanvas(relativeX, 0);
       ctx.fillText(`${toDisplay(relativeX)}`, cx, padding - 8);
     }
-
-    // Depth labels
     ctx.textAlign = 'right';
     for (let y = 0; y <= room.depth; y += gridStep) {
       const { cy } = cmToCanvas(0, y);
       ctx.fillText(`${toDisplay(y)}`, offsetX - 8, cy + 4);
     }
 
-    // Direction labels (from switch's perspective)
     ctx.fillStyle = '#64748b';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText("Switch's Left", offsetX + 4, padding + roomDepthPx - 4);
     ctx.textAlign = 'right';
     ctx.fillText("Switch's Right", offsetX + roomWidthPx - 4, padding + roomDepthPx - 4);
-  }, [room, zone, getScale, cmToCanvas, toDisplay, targets, obstacles, furniture]);
+  }, [room, zone, getScale, cmToCanvas, absToCanvas, toDisplay, targets, obstacles, furniture]);
 
   useEffect(() => {
     draw();
   }, [draw]);
 
-  const getHandleAtPosition = (cx: number, cy: number): DragHandle => {
-    const handleSize = 12;
+  const getObjectAtPosition = (cx: number, cy: number): { drag: DragType; cursor: string } => {
+    const hitSize = 12;
+
+    // Check furniture first (on top)
+    for (let i = furniture.length - 1; i >= 0; i--) {
+      const item = furniture[i];
+      const center = absToCanvas(item.x, item.y);
+      const scale = getScale();
+      const halfW = (item.width * scale) / 2;
+      const halfD = (item.depth * scale) / 2;
+
+      // Simple bounding box check (ignoring rotation for simplicity)
+      if (cx >= center.cx - halfW && cx <= center.cx + halfW &&
+          cy >= center.cy - halfD && cy <= center.cy + halfD) {
+        return { drag: { type: 'furniture', id: item.id }, cursor: 'move' };
+      }
+    }
+
+    // Check obstacles
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const obs = obstacles[i];
+      const pos1 = absToCanvas(obs.x1, obs.y1);
+      const pos2 = absToCanvas(obs.x2, obs.y2);
+
+      // Check corner handles
+      if (Math.abs(cx - pos1.cx) < hitSize && Math.abs(cy - pos1.cy) < hitSize) {
+        return { drag: { type: 'obstacle', id: obs.id, handle: 'nw' }, cursor: 'nwse-resize' };
+      }
+      if (Math.abs(cx - pos2.cx) < hitSize && Math.abs(cy - pos1.cy) < hitSize) {
+        return { drag: { type: 'obstacle', id: obs.id, handle: 'ne' }, cursor: 'nesw-resize' };
+      }
+      if (Math.abs(cx - pos1.cx) < hitSize && Math.abs(cy - pos2.cy) < hitSize) {
+        return { drag: { type: 'obstacle', id: obs.id, handle: 'sw' }, cursor: 'nesw-resize' };
+      }
+      if (Math.abs(cx - pos2.cx) < hitSize && Math.abs(cy - pos2.cy) < hitSize) {
+        return { drag: { type: 'obstacle', id: obs.id, handle: 'se' }, cursor: 'nwse-resize' };
+      }
+
+      // Check inside for move
+      if (cx >= pos1.cx && cx <= pos2.cx && cy >= pos1.cy && cy <= pos2.cy) {
+        return { drag: { type: 'obstacle', id: obs.id, handle: 'move' }, cursor: 'move' };
+      }
+    }
+
+    // Check zone handles
     const zoneLeft = cmToCanvas(zone.xMin, zone.yMin);
     const zoneRight = cmToCanvas(zone.xMax, zone.yMax);
     const midX = (zoneLeft.cx + zoneRight.cx) / 2;
     const midY = (zoneLeft.cy + zoneRight.cy) / 2;
 
-    // Check handles
-    if (Math.abs(cx - zoneLeft.cx) < handleSize && Math.abs(cy - midY) < handleSize) return 'left';
-    if (Math.abs(cx - zoneRight.cx) < handleSize && Math.abs(cy - midY) < handleSize) return 'right';
-    if (Math.abs(cx - midX) < handleSize && Math.abs(cy - zoneLeft.cy) < handleSize) return 'top';
-    if (Math.abs(cx - midX) < handleSize && Math.abs(cy - zoneRight.cy) < handleSize) return 'bottom';
-
-    // Check if inside zone for move
+    if (Math.abs(cx - zoneLeft.cx) < hitSize && Math.abs(cy - midY) < hitSize) {
+      return { drag: { type: 'zone', handle: 'left' }, cursor: 'ew-resize' };
+    }
+    if (Math.abs(cx - zoneRight.cx) < hitSize && Math.abs(cy - midY) < hitSize) {
+      return { drag: { type: 'zone', handle: 'right' }, cursor: 'ew-resize' };
+    }
+    if (Math.abs(cx - midX) < hitSize && Math.abs(cy - zoneLeft.cy) < hitSize) {
+      return { drag: { type: 'zone', handle: 'top' }, cursor: 'ns-resize' };
+    }
+    if (Math.abs(cx - midX) < hitSize && Math.abs(cy - zoneRight.cy) < hitSize) {
+      return { drag: { type: 'zone', handle: 'bottom' }, cursor: 'ns-resize' };
+    }
     if (cx >= zoneLeft.cx && cx <= zoneRight.cx && cy >= zoneLeft.cy && cy <= zoneRight.cy) {
-      return 'move';
+      return { drag: { type: 'zone', handle: 'move' }, cursor: 'move' };
     }
 
-    return null;
+    return { drag: null, cursor: 'default' };
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -283,11 +362,20 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
     const cx = e.clientX - rect.left;
     const cy = e.clientY - rect.top;
 
-    const handle = getHandleAtPosition(cx, cy);
-    if (handle) {
-      setDragHandle(handle);
+    const { drag } = getObjectAtPosition(cx, cy);
+    if (drag) {
+      setDragType(drag);
       setDragStart({ x: cx, y: cy });
-      setInitialZone({ ...zone });
+
+      if (drag.type === 'zone') {
+        setInitialZone({ ...zone });
+      } else if (drag.type === 'obstacle') {
+        const obs = obstacles.find(o => o.id === drag.id);
+        if (obs) setInitialObstacle({ ...obs });
+      } else if (drag.type === 'furniture') {
+        const item = furniture.find(f => f.id === drag.id);
+        if (item) setInitialFurniture({ ...item });
+      }
     }
   };
 
@@ -298,55 +386,84 @@ export function TopDownView({ room, zone, onZoneChange, units, targets = [], obs
     const cx = e.clientX - rect.left;
     const cy = e.clientY - rect.top;
 
-    if (!dragHandle || !initialZone) {
-      // Update cursor
-      const handle = getHandleAtPosition(cx, cy);
-      if (handle === 'left' || handle === 'right') {
-        canvas.style.cursor = 'ew-resize';
-      } else if (handle === 'top' || handle === 'bottom') {
-        canvas.style.cursor = 'ns-resize';
-      } else if (handle === 'move') {
-        canvas.style.cursor = 'move';
-      } else {
-        canvas.style.cursor = 'default';
-      }
+    if (!dragType) {
+      const { cursor } = getObjectAtPosition(cx, cy);
+      canvas.style.cursor = cursor;
       return;
     }
 
-    const startCm = canvasToCm(dragStart.x, dragStart.y);
-    const currentCm = canvasToCm(cx, cy);
-    const dx = Math.round(currentCm.x - startCm.x);
-    const dy = Math.round(currentCm.y - startCm.y);
+    if (dragType.type === 'zone' && initialZone) {
+      const startCm = canvasToCm(dragStart.x, dragStart.y);
+      const currentCm = canvasToCm(cx, cy);
+      const dx = Math.round(currentCm.x - startCm.x);
+      const dy = Math.round(currentCm.y - startCm.y);
 
-    const newZone = { ...initialZone };
+      const newZone = { ...initialZone };
+      switch (dragType.handle) {
+        case 'left': newZone.xMin = Math.min(initialZone.xMin + dx, initialZone.xMax - 10); break;
+        case 'right': newZone.xMax = Math.max(initialZone.xMax + dx, initialZone.xMin + 10); break;
+        case 'top': newZone.yMin = Math.max(0, Math.min(initialZone.yMin + dy, initialZone.yMax - 10)); break;
+        case 'bottom': newZone.yMax = Math.max(initialZone.yMax + dy, initialZone.yMin + 10); break;
+        case 'move':
+          newZone.xMin = initialZone.xMin + dx;
+          newZone.xMax = initialZone.xMax + dx;
+          newZone.yMin = Math.max(0, initialZone.yMin + dy);
+          newZone.yMax = initialZone.yMax + dy;
+          break;
+      }
+      onZoneChange(newZone);
+    } else if (dragType.type === 'obstacle' && initialObstacle && onObstaclesChange) {
+      const startAbs = canvasToAbs(dragStart.x, dragStart.y);
+      const currentAbs = canvasToAbs(cx, cy);
+      const dx = Math.round(currentAbs.x - startAbs.x);
+      const dy = Math.round(currentAbs.y - startAbs.y);
 
-    switch (dragHandle) {
-      case 'left':
-        newZone.xMin = Math.min(initialZone.xMin + dx, initialZone.xMax - 10);
-        break;
-      case 'right':
-        newZone.xMax = Math.max(initialZone.xMax + dx, initialZone.xMin + 10);
-        break;
-      case 'top':
-        newZone.yMin = Math.max(0, Math.min(initialZone.yMin + dy, initialZone.yMax - 10));
-        break;
-      case 'bottom':
-        newZone.yMax = Math.max(initialZone.yMax + dy, initialZone.yMin + 10);
-        break;
-      case 'move':
-        newZone.xMin = initialZone.xMin + dx;
-        newZone.xMax = initialZone.xMax + dx;
-        newZone.yMin = Math.max(0, initialZone.yMin + dy);
-        newZone.yMax = initialZone.yMax + dy;
-        break;
+      const newObs = { ...initialObstacle };
+      switch (dragType.handle) {
+        case 'move':
+          newObs.x1 = initialObstacle.x1 + dx;
+          newObs.x2 = initialObstacle.x2 + dx;
+          newObs.y1 = initialObstacle.y1 + dy;
+          newObs.y2 = initialObstacle.y2 + dy;
+          break;
+        case 'nw':
+          newObs.x1 = Math.min(initialObstacle.x1 + dx, initialObstacle.x2 - 10);
+          newObs.y1 = Math.min(initialObstacle.y1 + dy, initialObstacle.y2 - 10);
+          break;
+        case 'ne':
+          newObs.x2 = Math.max(initialObstacle.x2 + dx, initialObstacle.x1 + 10);
+          newObs.y1 = Math.min(initialObstacle.y1 + dy, initialObstacle.y2 - 10);
+          break;
+        case 'sw':
+          newObs.x1 = Math.min(initialObstacle.x1 + dx, initialObstacle.x2 - 10);
+          newObs.y2 = Math.max(initialObstacle.y2 + dy, initialObstacle.y1 + 10);
+          break;
+        case 'se':
+          newObs.x2 = Math.max(initialObstacle.x2 + dx, initialObstacle.x1 + 10);
+          newObs.y2 = Math.max(initialObstacle.y2 + dy, initialObstacle.y1 + 10);
+          break;
+      }
+      onObstaclesChange(obstacles.map(o => o.id === newObs.id ? newObs : o));
+    } else if (dragType.type === 'furniture' && initialFurniture && onFurnitureChange) {
+      const startAbs = canvasToAbs(dragStart.x, dragStart.y);
+      const currentAbs = canvasToAbs(cx, cy);
+      const dx = Math.round(currentAbs.x - startAbs.x);
+      const dy = Math.round(currentAbs.y - startAbs.y);
+
+      const newItem = {
+        ...initialFurniture,
+        x: initialFurniture.x + dx,
+        y: initialFurniture.y + dy,
+      };
+      onFurnitureChange(furniture.map(f => f.id === newItem.id ? newItem : f));
     }
-
-    onZoneChange(newZone);
   };
 
   const handleMouseUp = () => {
-    setDragHandle(null);
+    setDragType(null);
     setInitialZone(null);
+    setInitialObstacle(null);
+    setInitialFurniture(null);
   };
 
   return (

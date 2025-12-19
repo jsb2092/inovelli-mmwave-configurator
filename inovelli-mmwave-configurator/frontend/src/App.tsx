@@ -270,6 +270,8 @@ function App() {
             targets={targets}
             obstacles={obstacles}
             furniture={furniture}
+            onObstaclesChange={setObstacles}
+            onFurnitureChange={setFurniture}
           />
           <SideView
             room={room}
