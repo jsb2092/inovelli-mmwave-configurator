@@ -1,0 +1,19 @@
+name: "Inovelli mmWave Zone Configurator"
+description: "Visual zone editor for Inovelli VZM32-SN mmWave presence switches"
+version: "1.0.0"
+slug: "inovelli-mmwave-configurator"
+url: "https://github.com/inovelli/mmwave-configurator"
+arch:
+  - amd64
+  - aarch64
+  - armv7
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: "Web UI"
+ingress: true
+ingress_port: 8099
+homeassistant_api: true
+auth_api: true
+panel_icon: "mdi:radar"
+panel_title: "mmWave Configurator"
