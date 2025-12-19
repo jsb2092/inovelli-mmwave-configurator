@@ -4,11 +4,10 @@ FROM ${BUILD_FROM}
 # Install Node.js and nginx
 RUN apk add --no-cache nodejs npm nginx
 
-# Copy frontend source
+# Copy frontend source and build
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm ci
-
 COPY frontend/ ./
 RUN npm run build
 
@@ -16,14 +15,9 @@ RUN npm run build
 RUN mkdir -p /var/www/html
 RUN cp -r /app/dist/* /var/www/html/
 
-# Configure nginx
-COPY nginx.conf /etc/nginx/http.d/default.conf
+# Cleanup build files
+RUN rm -rf /app
 
-# s6-overlay v3 service structure
-RUN mkdir -p /etc/s6-overlay/s6-rc.d/nginx
-RUN mkdir -p /etc/s6-overlay/s6-rc.d/user/contents.d
-
-COPY run.sh /etc/s6-overlay/s6-rc.d/nginx/run
+# Copy rootfs
+COPY rootfs /
 RUN chmod a+x /etc/s6-overlay/s6-rc.d/nginx/run
-RUN echo "longrun" > /etc/s6-overlay/s6-rc.d/nginx/type
-RUN touch /etc/s6-overlay/s6-rc.d/user/contents.d/nginx
