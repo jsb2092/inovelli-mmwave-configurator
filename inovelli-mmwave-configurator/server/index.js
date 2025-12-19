@@ -1,5 +1,6 @@
 import express from 'express';
-import Database from 'better-sqlite3';
+import initSqlJs from 'sql.js';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -11,59 +12,114 @@ app.use(express.json());
 
 // Database setup - stored in /data for persistence in Home Assistant
 const DATA_DIR = process.env.DATA_DIR || '/data';
-const db = new Database(join(DATA_DIR, 'mmwave-config.db'));
+const DB_PATH = join(DATA_DIR, 'mmwave-config.db');
 
-// Initialize database tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
+// Ensure data directory exists
+if (!existsSync(DATA_DIR)) {
+  mkdirSync(DATA_DIR, { recursive: true });
+}
 
-  CREATE TABLE IF NOT EXISTS rooms (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    width INTEGER NOT NULL,
-    depth INTEGER NOT NULL,
-    height INTEGER NOT NULL,
-    sensor_x INTEGER NOT NULL,
-    sensor_height INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+let db;
 
-  CREATE TABLE IF NOT EXISTS obstacles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    room_id INTEGER,
-    type TEXT NOT NULL,
-    name TEXT NOT NULL,
-    x1 INTEGER NOT NULL,
-    y1 INTEGER NOT NULL,
-    x2 INTEGER NOT NULL,
-    y2 INTEGER NOT NULL,
-    z_min INTEGER,
-    z_max INTEGER,
-    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
-  );
+async function initDb() {
+  const SQL = await initSqlJs();
 
-  CREATE TABLE IF NOT EXISTS furniture (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    room_id INTEGER,
-    type TEXT NOT NULL,
-    name TEXT NOT NULL,
-    x INTEGER NOT NULL,
-    y INTEGER NOT NULL,
-    width INTEGER NOT NULL,
-    depth INTEGER NOT NULL,
-    height INTEGER NOT NULL,
-    rotation INTEGER DEFAULT 0,
-    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
-  );
-`);
+  // Load existing database or create new one
+  if (existsSync(DB_PATH)) {
+    const fileBuffer = readFileSync(DB_PATH);
+    db = new SQL.Database(fileBuffer);
+  } else {
+    db = new SQL.Database();
+  }
+
+  // Initialize database tables
+  db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS rooms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      width INTEGER NOT NULL,
+      depth INTEGER NOT NULL,
+      height INTEGER NOT NULL,
+      sensor_x INTEGER NOT NULL,
+      sensor_height INTEGER NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS obstacles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      room_id INTEGER,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      x1 INTEGER NOT NULL,
+      y1 INTEGER NOT NULL,
+      x2 INTEGER NOT NULL,
+      y2 INTEGER NOT NULL,
+      z_min INTEGER,
+      z_max INTEGER,
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS furniture (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      room_id INTEGER,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      x INTEGER NOT NULL,
+      y INTEGER NOT NULL,
+      width INTEGER NOT NULL,
+      depth INTEGER NOT NULL,
+      height INTEGER NOT NULL,
+      rotation INTEGER DEFAULT 0,
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    )
+  `);
+
+  saveDb();
+}
+
+function saveDb() {
+  const data = db.export();
+  const buffer = Buffer.from(data);
+  writeFileSync(DB_PATH, buffer);
+}
+
+function queryAll(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const results = [];
+  while (stmt.step()) {
+    results.push(stmt.getAsObject());
+  }
+  stmt.free();
+  return results;
+}
+
+function queryOne(sql, params = []) {
+  const results = queryAll(sql, params);
+  return results[0] || null;
+}
+
+function run(sql, params = []) {
+  db.run(sql, params);
+  saveDb();
+  return { lastInsertRowid: db.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0] };
+}
 
 // Settings API
 app.get('/api/settings/:key', (req, res) => {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(req.params.key);
+  const row = queryOne('SELECT value FROM settings WHERE key = ?', [req.params.key]);
   if (row) {
     try {
       res.json(JSON.parse(row.value));
@@ -77,34 +133,34 @@ app.get('/api/settings/:key', (req, res) => {
 
 app.put('/api/settings/:key', (req, res) => {
   const value = JSON.stringify(req.body);
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(req.params.key, value);
+  run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [req.params.key, value]);
   res.json({ success: true });
 });
 
 // Rooms API
 app.get('/api/rooms', (req, res) => {
-  const rooms = db.prepare('SELECT * FROM rooms ORDER BY updated_at DESC').all();
+  const rooms = queryAll('SELECT * FROM rooms ORDER BY updated_at DESC');
   res.json(rooms);
 });
 
 app.get('/api/rooms/:id', (req, res) => {
-  const room = db.prepare('SELECT * FROM rooms WHERE id = ?').get(req.params.id);
+  const room = queryOne('SELECT * FROM rooms WHERE id = ?', [req.params.id]);
   if (!room) {
     return res.status(404).json({ error: 'Room not found' });
   }
 
-  const obstacles = db.prepare('SELECT * FROM obstacles WHERE room_id = ?').all(req.params.id);
-  const furniture = db.prepare('SELECT * FROM furniture WHERE room_id = ?').all(req.params.id);
+  const obstacles = queryAll('SELECT * FROM obstacles WHERE room_id = ?', [req.params.id]);
+  const furniture = queryAll('SELECT * FROM furniture WHERE room_id = ?', [req.params.id]);
 
   res.json({ ...room, obstacles, furniture });
 });
 
 app.post('/api/rooms', (req, res) => {
   const { name, width, depth, height, sensor_x, sensor_height } = req.body;
-  const result = db.prepare(`
+  const result = run(`
     INSERT INTO rooms (name, width, depth, height, sensor_x, sensor_height)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(name || 'New Room', width || 400, depth || 500, height || 244, sensor_x || 200, sensor_height || 100);
+  `, [name || 'New Room', width || 400, depth || 500, height || 244, sensor_x || 200, sensor_height || 100]);
 
   res.json({ id: result.lastInsertRowid });
 });
@@ -112,32 +168,30 @@ app.post('/api/rooms', (req, res) => {
 app.put('/api/rooms/:id', (req, res) => {
   const { name, width, depth, height, sensor_x, sensor_height, obstacles, furniture: furnitureItems } = req.body;
 
-  db.prepare(`
+  run(`
     UPDATE rooms SET name = ?, width = ?, depth = ?, height = ?, sensor_x = ?, sensor_height = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(name, width, depth, height, sensor_x, sensor_height, req.params.id);
+  `, [name, width, depth, height, sensor_x, sensor_height, req.params.id]);
 
   // Update obstacles if provided
   if (obstacles) {
-    db.prepare('DELETE FROM obstacles WHERE room_id = ?').run(req.params.id);
-    const insertObstacle = db.prepare(`
-      INSERT INTO obstacles (room_id, type, name, x1, y1, x2, y2, z_min, z_max)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    run('DELETE FROM obstacles WHERE room_id = ?', [req.params.id]);
     for (const obs of obstacles) {
-      insertObstacle.run(req.params.id, obs.type, obs.name, obs.x1, obs.y1, obs.x2, obs.y2, obs.zMin, obs.zMax);
+      run(`
+        INSERT INTO obstacles (room_id, type, name, x1, y1, x2, y2, z_min, z_max)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [req.params.id, obs.type, obs.name, obs.x1, obs.y1, obs.x2, obs.y2, obs.zMin, obs.zMax]);
     }
   }
 
   // Update furniture if provided
   if (furnitureItems) {
-    db.prepare('DELETE FROM furniture WHERE room_id = ?').run(req.params.id);
-    const insertFurniture = db.prepare(`
-      INSERT INTO furniture (room_id, type, name, x, y, width, depth, height, rotation)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    run('DELETE FROM furniture WHERE room_id = ?', [req.params.id]);
     for (const item of furnitureItems) {
-      insertFurniture.run(req.params.id, item.type, item.name, item.x, item.y, item.width, item.depth, item.height, item.rotation || 0);
+      run(`
+        INSERT INTO furniture (room_id, type, name, x, y, width, depth, height, rotation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [req.params.id, item.type, item.name, item.x, item.y, item.width, item.depth, item.height, item.rotation || 0]);
     }
   }
 
@@ -145,7 +199,9 @@ app.put('/api/rooms/:id', (req, res) => {
 });
 
 app.delete('/api/rooms/:id', (req, res) => {
-  db.prepare('DELETE FROM rooms WHERE id = ?').run(req.params.id);
+  run('DELETE FROM obstacles WHERE room_id = ?', [req.params.id]);
+  run('DELETE FROM furniture WHERE room_id = ?', [req.params.id]);
+  run('DELETE FROM rooms WHERE id = ?', [req.params.id]);
   res.json({ success: true });
 });
 
@@ -158,6 +214,12 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 8099;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+initDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });

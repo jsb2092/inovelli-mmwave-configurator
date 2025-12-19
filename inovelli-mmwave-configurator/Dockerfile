@@ -1,8 +1,8 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Install Node.js, npm, and build dependencies for better-sqlite3
-RUN apk add --no-cache nodejs npm python3 make g++
+# Install Node.js and npm
+RUN apk add --no-cache nodejs npm
 
 # Build frontend
 WORKDIR /app/frontend
