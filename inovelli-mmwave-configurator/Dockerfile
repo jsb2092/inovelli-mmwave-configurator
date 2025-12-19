@@ -1,24 +1,30 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Install Node.js and nginx
-RUN apk add --no-cache nodejs npm nginx
+# Install Node.js, npm, and build dependencies for better-sqlite3
+RUN apk add --no-cache nodejs npm python3 make g++
 
-# Copy frontend source and build
-WORKDIR /app
+# Build frontend
+WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# Setup nginx to serve the built frontend
-RUN mkdir -p /var/www/html
-RUN cp -r /app/dist/* /var/www/html/
+# Setup server
+WORKDIR /app/server
+COPY server/package*.json ./
+RUN npm ci
+COPY server/ ./
 
-# Cleanup build files
-RUN rm -rf /app
+# Create data directory for SQLite
+RUN mkdir -p /data
 
-# Copy nginx config
-COPY rootfs/etc/nginx/http.d/default.conf /etc/nginx/http.d/default.conf
+WORKDIR /app/server
 
-CMD ["nginx", "-g", "daemon off;"]
+ENV PORT=8099
+ENV DATA_DIR=/data
+
+EXPOSE 8099
+
+CMD ["node", "index.js"]

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { RoomSetup } from './components/RoomSetup';
 import { TopDownView } from './components/TopDownView';
 import { SideView } from './components/SideView';
@@ -6,6 +6,7 @@ import { ZoneControls } from './components/ZoneControls';
 import { DeviceSelector } from './components/DeviceSelector';
 import { RoomObjects } from './components/RoomObjects';
 import { useHomeAssistant } from './hooks/useHomeAssistant';
+import { getSetting, saveSetting, getRooms, getRoom, createRoom, saveRoom, RoomRecord } from './api';
 import {
   RoomDimensions,
   ZoneBounds,
@@ -46,6 +47,10 @@ function App() {
   });
   const [obstacles, setObstacles] = useState<RoomObstacle[]>([]);
   const [furniture, setFurniture] = useState<FurnitureItem[]>([]);
+  const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
+  const [_savedRooms, setSavedRooms] = useState<RoomRecord[]>([]); // TODO: Add room selector UI
+  const [isLoadingRoom, setIsLoadingRoom] = useState(true);
+  const saveTimeoutRef = useRef<number | null>(null);
 
   // Home Assistant connection
   const {
@@ -74,6 +79,147 @@ function App() {
   useEffect(() => {
     localStorage.setItem('units', units);
   }, [units]);
+
+  // Load rooms from database on mount
+  useEffect(() => {
+    const loadRooms = async () => {
+      setIsLoadingRoom(true);
+      const rooms = await getRooms();
+      setSavedRooms(rooms);
+
+      // Load last used room ID from settings
+      const lastRoomId = await getSetting<number>('lastRoomId');
+
+      if (lastRoomId && rooms.some(r => r.id === lastRoomId)) {
+        // Load the last used room
+        const roomData = await getRoom(lastRoomId);
+        if (roomData) {
+          setCurrentRoomId(lastRoomId);
+          setRoom({
+            width: roomData.width,
+            depth: roomData.depth,
+            height: roomData.height,
+            sensorX: roomData.sensor_x,
+            sensorHeight: roomData.sensor_height,
+          });
+          if (roomData.obstacles) {
+            setObstacles(roomData.obstacles.map(o => ({
+              id: `obstacle-${o.id}`,
+              type: o.type as 'wall' | 'exclusion',
+              name: o.name,
+              x1: o.x1,
+              y1: o.y1,
+              x2: o.x2,
+              y2: o.y2,
+              zMin: o.z_min,
+              zMax: o.z_max,
+            })));
+          }
+          if (roomData.furniture) {
+            setFurniture(roomData.furniture.map(f => ({
+              id: `furniture-${f.id}`,
+              type: f.type as FurnitureItem['type'],
+              name: f.name,
+              x: f.x,
+              y: f.y,
+              width: f.width,
+              depth: f.depth,
+              height: f.height,
+              rotation: f.rotation,
+            })));
+          }
+        }
+      } else if (rooms.length > 0) {
+        // Use the most recent room
+        const roomData = await getRoom(rooms[0].id);
+        if (roomData) {
+          setCurrentRoomId(rooms[0].id);
+          setRoom({
+            width: roomData.width,
+            depth: roomData.depth,
+            height: roomData.height,
+            sensorX: roomData.sensor_x,
+            sensorHeight: roomData.sensor_height,
+          });
+        }
+      } else {
+        // Create a default room
+        const newRoomId = await createRoom({
+          name: 'Default Room',
+          width: DEFAULT_ROOM.width,
+          depth: DEFAULT_ROOM.depth,
+          height: DEFAULT_ROOM.height,
+          sensor_x: DEFAULT_ROOM.sensorX,
+          sensor_height: DEFAULT_ROOM.sensorHeight,
+        });
+        if (newRoomId) {
+          setCurrentRoomId(newRoomId);
+          setSavedRooms([{
+            id: newRoomId,
+            name: 'Default Room',
+            width: DEFAULT_ROOM.width,
+            depth: DEFAULT_ROOM.depth,
+            height: DEFAULT_ROOM.height,
+            sensor_x: DEFAULT_ROOM.sensorX,
+            sensor_height: DEFAULT_ROOM.sensorHeight,
+          }]);
+        }
+      }
+      setIsLoadingRoom(false);
+    };
+    loadRooms();
+  }, []);
+
+  // Auto-save room changes to database (debounced)
+  const saveRoomToDb = useCallback(async () => {
+    if (!currentRoomId) return;
+    await saveRoom(currentRoomId, {
+      width: room.width,
+      depth: room.depth,
+      height: room.height,
+      sensor_x: room.sensorX,
+      sensor_height: room.sensorHeight,
+      obstacles: obstacles.map(o => ({
+        type: o.type,
+        name: o.name,
+        x1: o.x1,
+        y1: o.y1,
+        x2: o.x2,
+        y2: o.y2,
+        zMin: o.zMin,
+        zMax: o.zMax,
+      })),
+      furniture: furniture.map(f => ({
+        type: f.type,
+        name: f.name,
+        x: f.x,
+        y: f.y,
+        width: f.width,
+        depth: f.depth,
+        height: f.height,
+        rotation: f.rotation,
+      })),
+    });
+    saveSetting('lastRoomId', currentRoomId);
+  }, [currentRoomId, room, obstacles, furniture]);
+
+  // Debounced save effect
+  useEffect(() => {
+    if (isLoadingRoom || !currentRoomId) return;
+
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = window.setTimeout(() => {
+      saveRoomToDb();
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [room, obstacles, furniture, currentRoomId, isLoadingRoom, saveRoomToDb]);
 
   // Auto-connect on load if we have credentials
   useEffect(() => {
