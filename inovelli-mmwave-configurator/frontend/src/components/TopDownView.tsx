@@ -277,9 +277,9 @@ export function TopDownView({
     ctx.fillStyle = '#64748b';
     ctx.font = '10px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText("Switch's Left", offsetX + 4, padding + roomDepthPx - 4);
+    ctx.fillText("Switch's Right", offsetX + 4, padding + roomDepthPx - 4);
     ctx.textAlign = 'right';
-    ctx.fillText("Switch's Right", offsetX + roomWidthPx - 4, padding + roomDepthPx - 4);
+    ctx.fillText("Switch's Left", offsetX + roomWidthPx - 4, padding + roomDepthPx - 4);
   }, [room, zone, getScale, cmToCanvas, absToCanvas, toDisplay, targets, obstacles, furniture]);
 
   useEffect(() => {
