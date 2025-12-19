@@ -426,6 +426,7 @@ function App() {
             units={units}
             targets={targets}
             furniture={furniture}
+            onFurnitureChange={setFurniture}
           />
         </div>
 

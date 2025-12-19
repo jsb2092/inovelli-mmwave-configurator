@@ -8,20 +8,26 @@ interface SideViewProps {
   units: UnitSystem;
   targets?: Target[];
   furniture?: FurnitureItem[];
+  onFurnitureChange?: (furniture: FurnitureItem[]) => void;
 }
 
-type DragHandle = 'left' | 'right' | 'top' | 'bottom' | 'move' | null;
+type DragType =
+  | { type: 'zone'; handle: 'left' | 'right' | 'top' | 'bottom' | 'move' }
+  | { type: 'furniture'; id: string }
+  | null;
 
-export function SideView({ room, zone, onZoneChange, units, targets = [], furniture = [] }: SideViewProps) {
+export function SideView({ room, zone, onZoneChange, units, targets = [], furniture = [], onFurnitureChange }: SideViewProps) {
   const isImperial = units === 'imperial';
   const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm)) : cm;
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [dragHandle, setDragHandle] = useState<DragHandle>(null);
+  const [dragType, setDragType] = useState<DragType>(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [initialZone, setInitialZone] = useState<ZoneBounds | null>(null);
+  const [initialFurniture, setInitialFurniture] = useState<FurnitureItem | null>(null);
 
   const padding = 40;
   const sensorSize = 8;
+  const handleSize = 8;
 
   const getScale = useCallback(() => {
     const canvas = canvasRef.current;
@@ -44,7 +50,7 @@ export function SideView({ room, zone, onZoneChange, units, targets = [], furnit
       cx: padding + y * scale,
       cy: offsetY + (room.height - absoluteZ) * scale, // Invert Y for canvas
     };
-  }, [room.depth, room.height, room.sensorHeight, getScale]);
+  }, [room.height, room.sensorHeight, getScale]);
 
   const canvasToCm = useCallback((cx: number, cy: number) => {
     const canvas = canvasRef.current;
@@ -58,6 +64,31 @@ export function SideView({ room, zone, onZoneChange, units, targets = [], furnit
       z: absoluteZ - room.sensorHeight,
     };
   }, [room.height, room.sensorHeight, getScale]);
+
+  // Convert absolute room coords to canvas (for furniture which uses absolute Y position)
+  const absToCanvas = useCallback((y: number, zAbs: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { cx: 0, cy: 0 };
+    const scale = getScale();
+    const roomHeightPx = room.height * scale;
+    const offsetY = (canvas.height - roomHeightPx) / 2;
+    return {
+      cx: padding + y * scale,
+      cy: offsetY + (room.height - zAbs) * scale,
+    };
+  }, [room.height, getScale]);
+
+  const canvasToAbs = useCallback((cx: number, cy: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { y: 0, z: 0 };
+    const scale = getScale();
+    const roomHeightPx = room.height * scale;
+    const offsetY = (canvas.height - roomHeightPx) / 2;
+    return {
+      y: (cx - padding) / scale,
+      z: room.height - (cy - offsetY) / scale,
+    };
+  }, [room.height, getScale]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -124,10 +155,8 @@ export function SideView({ room, zone, onZoneChange, units, targets = [], furnit
     ctx.lineWidth = 2;
     ctx.strokeRect(zoneNear.cx, zoneNear.cy, zoneWidth, zoneHeight);
 
-    // Draw drag handles
-    const handleSize = 8;
+    // Draw zone drag handles
     ctx.fillStyle = '#10b981';
-
     // Left handle (near/yMin)
     ctx.fillRect(zoneNear.cx - handleSize / 2, (zoneNear.cy + zoneFar.cy) / 2 - handleSize / 2, handleSize, handleSize);
     // Right handle (far/yMax)
@@ -139,23 +168,29 @@ export function SideView({ room, zone, onZoneChange, units, targets = [], furnit
 
     // Draw furniture (side view - shows depth and height)
     furniture.forEach((item) => {
-      const itemNear = cmToCanvas(item.y - item.depth / 2, item.height - room.sensorHeight);
-      const itemFar = cmToCanvas(item.y + item.depth / 2, -room.sensorHeight);
+      const itemTop = absToCanvas(item.y - item.depth / 2, item.height);
+      const itemBottom = absToCanvas(item.y + item.depth / 2, 0);
 
-      const itemWidthPx = itemFar.cx - itemNear.cx;
-      const itemHeightPx = itemFar.cy - itemNear.cy;
+      const itemWidthPx = itemBottom.cx - itemTop.cx;
+      const itemHeightPx = itemBottom.cy - itemTop.cy;
 
       ctx.fillStyle = 'rgba(139, 92, 246, 0.4)';
       ctx.strokeStyle = '#8b5cf6';
       ctx.lineWidth = 2;
-      ctx.fillRect(itemNear.cx, itemNear.cy, itemWidthPx, itemHeightPx);
-      ctx.strokeRect(itemNear.cx, itemNear.cy, itemWidthPx, itemHeightPx);
+      ctx.fillRect(itemTop.cx, itemTop.cy, itemWidthPx, itemHeightPx);
+      ctx.strokeRect(itemTop.cx, itemTop.cy, itemWidthPx, itemHeightPx);
+
+      // Move handle in center
+      ctx.fillStyle = '#a78bfa';
+      ctx.beginPath();
+      ctx.arc(itemTop.cx + itemWidthPx / 2, itemTop.cy + itemHeightPx / 2, 6, 0, Math.PI * 2);
+      ctx.fill();
 
       // Label
       ctx.fillStyle = '#c4b5fd';
       ctx.font = '9px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(item.name || item.type, itemNear.cx + itemWidthPx / 2, itemNear.cy + itemHeightPx / 2 + 3);
+      ctx.fillText(item.name || item.type, itemTop.cx + itemWidthPx / 2, itemTop.cy - 8);
     });
 
     // Draw detected targets
@@ -217,45 +252,73 @@ export function SideView({ room, zone, onZoneChange, units, targets = [], furnit
     ctx.textAlign = 'left';
     ctx.fillStyle = '#f59e0b';
     ctx.fillText('sensor', sensorPos.cx + 12, sensorPos.cy + 4);
-  }, [room, zone, getScale, cmToCanvas, toDisplay, targets, furniture]);
+  }, [room, zone, getScale, cmToCanvas, absToCanvas, toDisplay, targets, furniture]);
 
   useEffect(() => {
     draw();
   }, [draw]);
 
-  const getHandleAtPosition = (cx: number, cy: number): DragHandle => {
-    const handleSize = 12;
+  const getObjectAtPosition = (cx: number, cy: number): { drag: DragType; cursor: string } => {
+    const hitSize = 12;
+
+    // Check furniture first (on top)
+    for (let i = furniture.length - 1; i >= 0; i--) {
+      const item = furniture[i];
+      const itemTop = absToCanvas(item.y - item.depth / 2, item.height);
+      const itemBottom = absToCanvas(item.y + item.depth / 2, 0);
+
+      if (cx >= itemTop.cx && cx <= itemBottom.cx &&
+          cy >= itemTop.cy && cy <= itemBottom.cy) {
+        return { drag: { type: 'furniture', id: item.id }, cursor: 'move' };
+      }
+    }
+
+    // Check zone handles
     const zoneNear = cmToCanvas(zone.yMin, zone.zMax);
     const zoneFar = cmToCanvas(zone.yMax, zone.zMin);
     const midX = (zoneNear.cx + zoneFar.cx) / 2;
     const midY = (zoneNear.cy + zoneFar.cy) / 2;
 
-    // Check handles
-    if (Math.abs(cx - zoneNear.cx) < handleSize && Math.abs(cy - midY) < handleSize) return 'left';
-    if (Math.abs(cx - zoneFar.cx) < handleSize && Math.abs(cy - midY) < handleSize) return 'right';
-    if (Math.abs(cx - midX) < handleSize && Math.abs(cy - zoneNear.cy) < handleSize) return 'top';
-    if (Math.abs(cx - midX) < handleSize && Math.abs(cy - zoneFar.cy) < handleSize) return 'bottom';
-
-    // Check if inside zone for move
+    if (Math.abs(cx - zoneNear.cx) < hitSize && Math.abs(cy - midY) < hitSize) {
+      return { drag: { type: 'zone', handle: 'left' }, cursor: 'ew-resize' };
+    }
+    if (Math.abs(cx - zoneFar.cx) < hitSize && Math.abs(cy - midY) < hitSize) {
+      return { drag: { type: 'zone', handle: 'right' }, cursor: 'ew-resize' };
+    }
+    if (Math.abs(cx - midX) < hitSize && Math.abs(cy - zoneNear.cy) < hitSize) {
+      return { drag: { type: 'zone', handle: 'top' }, cursor: 'ns-resize' };
+    }
+    if (Math.abs(cx - midX) < hitSize && Math.abs(cy - zoneFar.cy) < hitSize) {
+      return { drag: { type: 'zone', handle: 'bottom' }, cursor: 'ns-resize' };
+    }
     if (cx >= zoneNear.cx && cx <= zoneFar.cx && cy >= zoneNear.cy && cy <= zoneFar.cy) {
-      return 'move';
+      return { drag: { type: 'zone', handle: 'move' }, cursor: 'move' };
     }
 
-    return null;
+    return { drag: null, cursor: 'default' };
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const cx = e.clientX - rect.left;
-    const cy = e.clientY - rect.top;
+    // Scale mouse coords to canvas internal dimensions
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const cx = (e.clientX - rect.left) * scaleX;
+    const cy = (e.clientY - rect.top) * scaleY;
 
-    const handle = getHandleAtPosition(cx, cy);
-    if (handle) {
-      setDragHandle(handle);
+    const { drag } = getObjectAtPosition(cx, cy);
+    if (drag) {
+      setDragType(drag);
       setDragStart({ x: cx, y: cy });
-      setInitialZone({ ...zone });
+
+      if (drag.type === 'zone') {
+        setInitialZone({ ...zone });
+      } else if (drag.type === 'furniture') {
+        const item = furniture.find(f => f.id === drag.id);
+        if (item) setInitialFurniture({ ...item });
+      }
     }
   };
 
@@ -263,58 +326,65 @@ export function SideView({ room, zone, onZoneChange, units, targets = [], furnit
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const cx = e.clientX - rect.left;
-    const cy = e.clientY - rect.top;
+    // Scale mouse coords to canvas internal dimensions
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const cx = (e.clientX - rect.left) * scaleX;
+    const cy = (e.clientY - rect.top) * scaleY;
 
-    if (!dragHandle || !initialZone) {
-      // Update cursor
-      const handle = getHandleAtPosition(cx, cy);
-      if (handle === 'left' || handle === 'right') {
-        canvas.style.cursor = 'ew-resize';
-      } else if (handle === 'top' || handle === 'bottom') {
-        canvas.style.cursor = 'ns-resize';
-      } else if (handle === 'move') {
-        canvas.style.cursor = 'move';
-      } else {
-        canvas.style.cursor = 'default';
-      }
+    if (!dragType) {
+      const { cursor } = getObjectAtPosition(cx, cy);
+      canvas.style.cursor = cursor;
       return;
     }
 
-    const startCm = canvasToCm(dragStart.x, dragStart.y);
-    const currentCm = canvasToCm(cx, cy);
-    const dy = Math.round(currentCm.y - startCm.y);
-    const dz = Math.round(currentCm.z - startCm.z);
+    if (dragType.type === 'zone' && initialZone) {
+      const startCm = canvasToCm(dragStart.x, dragStart.y);
+      const currentCm = canvasToCm(cx, cy);
+      const dy = Math.round(currentCm.y - startCm.y);
+      const dz = Math.round(currentCm.z - startCm.z);
 
-    const newZone = { ...initialZone };
+      const newZone = { ...initialZone };
 
-    switch (dragHandle) {
-      case 'left': // Near boundary (yMin)
-        newZone.yMin = Math.max(0, Math.min(initialZone.yMin + dy, initialZone.yMax - 10));
-        break;
-      case 'right': // Far boundary (yMax)
-        newZone.yMax = Math.max(initialZone.yMax + dy, initialZone.yMin + 10);
-        break;
-      case 'top': // Ceiling (zMax)
-        newZone.zMax = Math.max(initialZone.zMax + dz, initialZone.zMin + 10);
-        break;
-      case 'bottom': // Floor (zMin)
-        newZone.zMin = Math.min(initialZone.zMin + dz, initialZone.zMax - 10);
-        break;
-      case 'move':
-        newZone.yMin = Math.max(0, initialZone.yMin + dy);
-        newZone.yMax = initialZone.yMax + dy;
-        newZone.zMin = initialZone.zMin + dz;
-        newZone.zMax = initialZone.zMax + dz;
-        break;
+      switch (dragType.handle) {
+        case 'left': // Near boundary (yMin)
+          newZone.yMin = Math.max(0, Math.min(initialZone.yMin + dy, initialZone.yMax - 10));
+          break;
+        case 'right': // Far boundary (yMax)
+          newZone.yMax = Math.max(initialZone.yMax + dy, initialZone.yMin + 10);
+          break;
+        case 'top': // Ceiling (zMax)
+          newZone.zMax = Math.max(initialZone.zMax + dz, initialZone.zMin + 10);
+          break;
+        case 'bottom': // Floor (zMin)
+          newZone.zMin = Math.min(initialZone.zMin + dz, initialZone.zMax - 10);
+          break;
+        case 'move':
+          newZone.yMin = Math.max(0, initialZone.yMin + dy);
+          newZone.yMax = initialZone.yMax + dy;
+          newZone.zMin = initialZone.zMin + dz;
+          newZone.zMax = initialZone.zMax + dz;
+          break;
+      }
+
+      onZoneChange(newZone);
+    } else if (dragType.type === 'furniture' && initialFurniture && onFurnitureChange) {
+      const startAbs = canvasToAbs(dragStart.x, dragStart.y);
+      const currentAbs = canvasToAbs(cx, cy);
+      const dy = Math.round(currentAbs.y - startAbs.y);
+
+      const newItem = {
+        ...initialFurniture,
+        y: Math.max(initialFurniture.depth / 2, initialFurniture.y + dy),
+      };
+      onFurnitureChange(furniture.map(f => f.id === newItem.id ? newItem : f));
     }
-
-    onZoneChange(newZone);
   };
 
   const handleMouseUp = () => {
-    setDragHandle(null);
+    setDragType(null);
     setInitialZone(null);
+    setInitialFurniture(null);
   };
 
   return (
