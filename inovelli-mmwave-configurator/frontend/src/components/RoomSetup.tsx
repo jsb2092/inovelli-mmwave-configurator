@@ -53,6 +53,24 @@ export function RoomSetup({ room, onChange }: RoomSetupProps) {
             className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
           />
         </div>
+        <div className="col-span-2">
+          <label className="block text-xs text-slate-400 mb-1">
+            Sensor Position from Left Wall: {room.sensorX} cm
+          </label>
+          <input
+            type="range"
+            min="0"
+            max={room.width}
+            value={room.sensorX}
+            onChange={(e) => handleChange('sensorX', e.target.value)}
+            className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+          />
+          <div className="flex justify-between text-xs text-slate-500 mt-1">
+            <span>Left (0)</span>
+            <span>Center ({Math.round(room.width / 2)})</span>
+            <span>Right ({room.width})</span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ export interface RoomDimensions {
   depth: number;  // cm
   height: number; // cm
   sensorHeight: number; // cm from floor
+  sensorX: number; // cm from left wall (0 = left edge, width = right edge)
 }
 
 export interface ZoneBounds {
@@ -57,6 +58,7 @@ export const DEFAULT_ROOM: RoomDimensions = {
   depth: 500,
   height: 280,
   sensorHeight: 120,
+  sensorX: 200, // centered by default (width / 2)
 };
 
 export const DEFAULT_ZONE: ZoneBounds = {

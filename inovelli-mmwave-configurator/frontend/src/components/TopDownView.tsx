@@ -32,11 +32,12 @@ export function TopDownView({ room, zone, onZoneChange }: TopDownViewProps) {
     const scale = getScale();
     const roomWidthPx = room.width * scale;
     const offsetX = (canvas.width - roomWidthPx) / 2;
+    // x is relative to sensor position, room.sensorX is sensor distance from left wall
     return {
-      cx: offsetX + (room.width / 2 + x) * scale,
+      cx: offsetX + (room.sensorX + x) * scale,
       cy: padding + y * scale,
     };
-  }, [room.width, getScale]);
+  }, [room.width, room.sensorX, getScale]);
 
   const canvasToCm = useCallback((cx: number, cy: number) => {
     const canvas = canvasRef.current;
@@ -45,10 +46,10 @@ export function TopDownView({ room, zone, onZoneChange }: TopDownViewProps) {
     const roomWidthPx = room.width * scale;
     const offsetX = (canvas.width - roomWidthPx) / 2;
     return {
-      x: (cx - offsetX) / scale - room.width / 2,
+      x: (cx - offsetX) / scale - room.sensorX,
       y: (cy - padding) / scale,
     };
-  }, [room.width, getScale]);
+  }, [room.width, room.sensorX, getScale]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -136,10 +137,11 @@ export function TopDownView({ room, zone, onZoneChange }: TopDownViewProps) {
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
 
-    // Width labels
+    // Width labels (relative to sensor position)
     for (let x = 0; x <= room.width; x += gridStep) {
-      const { cx } = cmToCanvas(x - room.width / 2, 0);
-      ctx.fillText(`${x - room.width / 2}`, cx, padding - 8);
+      const relativeX = x - room.sensorX;
+      const { cx } = cmToCanvas(relativeX, 0);
+      ctx.fillText(`${relativeX}`, cx, padding - 8);
     }
 
     // Depth labels
