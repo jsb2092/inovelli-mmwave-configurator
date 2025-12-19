@@ -131,15 +131,15 @@ export function TopDownView({
         };
       case 'left':
         return {
-          cx: offsetX + roomWidthPx,
+          cx: offsetX,
           cy: padding + sensorPos.position * scale,
-          rotation: -Math.PI / 2,
+          rotation: Math.PI / 2,
         };
       case 'right':
         return {
-          cx: offsetX,
+          cx: offsetX + roomWidthPx,
           cy: padding + (room.depth - sensorPos.position) * scale,
-          rotation: Math.PI / 2,
+          rotation: -Math.PI / 2,
         };
       default:
         return { cx: offsetX + roomWidthPx / 2, cy: padding, rotation: 0 };
