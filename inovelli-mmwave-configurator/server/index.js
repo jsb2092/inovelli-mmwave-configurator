@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ strict: false })); // Allow primitives like numbers
 
 // Database setup - stored in /data for persistence in Home Assistant
 const DATA_DIR = process.env.DATA_DIR || '/data';
@@ -126,9 +126,11 @@ function queryOne(sql, params = []) {
 
 function run(sql, params = []) {
   db.run(sql, params);
-  saveDb();
+  // Get last_insert_rowid BEFORE saveDb (which exports the db)
   const result = db.exec("SELECT last_insert_rowid()");
-  return { lastInsertRowid: result[0]?.values[0]?.[0] };
+  const lastInsertRowid = result[0]?.values[0]?.[0];
+  saveDb();
+  return { lastInsertRowid };
 }
 
 // Settings API

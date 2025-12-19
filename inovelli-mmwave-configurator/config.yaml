@@ -1,6 +1,6 @@
 name: "Inovelli mmWave Zone Configurator"
 description: "Visual zone editor for Inovelli VZM32-SN mmWave presence switches"
-version: "1.0.30"
+version: "1.0.31"
 slug: "inovelli-mmwave-configurator"
 init: false
 url: "https://github.com/inovelli/mmwave-configurator"
