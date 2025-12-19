@@ -1,22 +1,18 @@
-import express from 'express';
-import initSqlJs from 'sql.js';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const express = require('express');
+const initSqlJs = require('sql.js');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
 
 // Database setup - stored in /data for persistence in Home Assistant
 const DATA_DIR = process.env.DATA_DIR || '/data';
-const DB_PATH = join(DATA_DIR, 'mmwave-config.db');
+const DB_PATH = path.join(DATA_DIR, 'mmwave-config.db');
 
 // Ensure data directory exists
-if (!existsSync(DATA_DIR)) {
-  mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 let db;
@@ -25,8 +21,8 @@ async function initDb() {
   const SQL = await initSqlJs();
 
   // Load existing database or create new one
-  if (existsSync(DB_PATH)) {
-    const fileBuffer = readFileSync(DB_PATH);
+  if (fs.existsSync(DB_PATH)) {
+    const fileBuffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(fileBuffer);
   } else {
     db = new SQL.Database();
@@ -92,7 +88,7 @@ async function initDb() {
 function saveDb() {
   const data = db.export();
   const buffer = Buffer.from(data);
-  writeFileSync(DB_PATH, buffer);
+  fs.writeFileSync(DB_PATH, buffer);
 }
 
 function queryAll(sql, params = []) {
@@ -114,7 +110,8 @@ function queryOne(sql, params = []) {
 function run(sql, params = []) {
   db.run(sql, params);
   saveDb();
-  return { lastInsertRowid: db.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0] };
+  const result = db.exec("SELECT last_insert_rowid()");
+  return { lastInsertRowid: result[0]?.values[0]?.[0] };
 }
 
 // Settings API
@@ -206,11 +203,11 @@ app.delete('/api/rooms/:id', (req, res) => {
 });
 
 // Serve static frontend files
-app.use(express.static(join(__dirname, '../frontend/dist')));
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // SPA fallback
 app.get('*', (req, res) => {
-  res.sendFile(join(__dirname, '../frontend/dist/index.html'));
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
 const PORT = process.env.PORT || 8099;
