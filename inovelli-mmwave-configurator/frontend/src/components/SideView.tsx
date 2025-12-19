@@ -1,16 +1,18 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { RoomDimensions, ZoneBounds, UnitSystem, cmToInches } from '../types';
+import { RoomDimensions, ZoneBounds, UnitSystem, cmToInches, Target, FurnitureItem } from '../types';
 
 interface SideViewProps {
   room: RoomDimensions;
   zone: ZoneBounds;
   onZoneChange: (zone: ZoneBounds) => void;
   units: UnitSystem;
+  targets?: Target[];
+  furniture?: FurnitureItem[];
 }
 
 type DragHandle = 'left' | 'right' | 'top' | 'bottom' | 'move' | null;
 
-export function SideView({ room, zone, onZoneChange, units }: SideViewProps) {
+export function SideView({ room, zone, onZoneChange, units, targets = [], furniture = [] }: SideViewProps) {
   const isImperial = units === 'imperial';
   const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm)) : cm;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -135,6 +137,56 @@ export function SideView({ room, zone, onZoneChange, units }: SideViewProps) {
     // Bottom handle (floor/zMin)
     ctx.fillRect((zoneNear.cx + zoneFar.cx) / 2 - handleSize / 2, zoneFar.cy - handleSize / 2, handleSize, handleSize);
 
+    // Draw furniture (side view - shows depth and height)
+    furniture.forEach((item) => {
+      const itemNear = cmToCanvas(item.y - item.depth / 2, item.height - room.sensorHeight);
+      const itemFar = cmToCanvas(item.y + item.depth / 2, -room.sensorHeight);
+
+      const itemWidthPx = itemFar.cx - itemNear.cx;
+      const itemHeightPx = itemFar.cy - itemNear.cy;
+
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.4)';
+      ctx.strokeStyle = '#8b5cf6';
+      ctx.lineWidth = 2;
+      ctx.fillRect(itemNear.cx, itemNear.cy, itemWidthPx, itemHeightPx);
+      ctx.strokeRect(itemNear.cx, itemNear.cy, itemWidthPx, itemHeightPx);
+
+      // Label
+      ctx.fillStyle = '#c4b5fd';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.name || item.type, itemNear.cx + itemWidthPx / 2, itemNear.cy + itemHeightPx / 2 + 3);
+    });
+
+    // Draw detected targets
+    targets.forEach((target) => {
+      const targetPos = cmToCanvas(target.y, target.z);
+
+      // Outer glow
+      const gradient = ctx.createRadialGradient(
+        targetPos.cx, targetPos.cy, 0,
+        targetPos.cx, targetPos.cy, 20
+      );
+      gradient.addColorStop(0, 'rgba(34, 197, 94, 0.6)');
+      gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(targetPos.cx, targetPos.cy, 20, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Target point
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(targetPos.cx, targetPos.cy, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Target ID
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${target.id}`, targetPos.cx, targetPos.cy + 3);
+    });
+
     // Draw sensor
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
@@ -165,7 +217,7 @@ export function SideView({ room, zone, onZoneChange, units }: SideViewProps) {
     ctx.textAlign = 'left';
     ctx.fillStyle = '#f59e0b';
     ctx.fillText('sensor', sensorPos.cx + 12, sensorPos.cy + 4);
-  }, [room, zone, getScale, cmToCanvas, toDisplay]);
+  }, [room, zone, getScale, cmToCanvas, toDisplay, targets, furniture]);
 
   useEffect(() => {
     draw();

@@ -1,16 +1,19 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { RoomDimensions, ZoneBounds, UnitSystem, cmToInches } from '../types';
+import { RoomDimensions, ZoneBounds, UnitSystem, cmToInches, Target, RoomObstacle, FurnitureItem } from '../types';
 
 interface TopDownViewProps {
   room: RoomDimensions;
   zone: ZoneBounds;
   onZoneChange: (zone: ZoneBounds) => void;
   units: UnitSystem;
+  targets?: Target[];
+  obstacles?: RoomObstacle[];
+  furniture?: FurnitureItem[];
 }
 
 type DragHandle = 'left' | 'right' | 'top' | 'bottom' | 'move' | null;
 
-export function TopDownView({ room, zone, onZoneChange, units }: TopDownViewProps) {
+export function TopDownView({ room, zone, onZoneChange, units, targets = [], obstacles = [], furniture = [] }: TopDownViewProps) {
   const isImperial = units === 'imperial';
   const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm)) : cm;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -120,6 +123,89 @@ export function TopDownView({ room, zone, onZoneChange, units }: TopDownViewProp
     // Bottom handle (far)
     ctx.fillRect((zoneLeft.cx + zoneRight.cx) / 2 - handleSize / 2, zoneRight.cy - handleSize / 2, handleSize, handleSize);
 
+    // Draw obstacles (walls, exclusion zones)
+    obstacles.forEach((obstacle) => {
+      const obstaclePos1 = cmToCanvas(obstacle.x1 - room.sensorX, obstacle.y1);
+      const obstaclePos2 = cmToCanvas(obstacle.x2 - room.sensorX, obstacle.y2);
+      const obstacleWidth = obstaclePos2.cx - obstaclePos1.cx;
+      const obstacleHeight = obstaclePos2.cy - obstaclePos1.cy;
+
+      if (obstacle.type === 'wall') {
+        ctx.fillStyle = 'rgba(100, 116, 139, 0.7)';
+        ctx.strokeStyle = '#64748b';
+      } else {
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
+        ctx.strokeStyle = '#ef4444';
+      }
+      ctx.lineWidth = 2;
+      ctx.fillRect(obstaclePos1.cx, obstaclePos1.cy, obstacleWidth, obstacleHeight);
+      ctx.strokeRect(obstaclePos1.cx, obstaclePos1.cy, obstacleWidth, obstacleHeight);
+
+      // Label
+      ctx.fillStyle = obstacle.type === 'wall' ? '#94a3b8' : '#fca5a5';
+      ctx.font = '9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(obstacle.name, obstaclePos1.cx + obstacleWidth / 2, obstaclePos1.cy + obstacleHeight / 2 + 3);
+    });
+
+    // Draw furniture
+    furniture.forEach((item) => {
+      const rad = (item.rotation * Math.PI) / 180;
+      const itemCenter = cmToCanvas(item.x - room.sensorX, item.y);
+
+      ctx.save();
+      ctx.translate(itemCenter.cx, itemCenter.cy);
+      ctx.rotate(rad);
+
+      const itemWidthPx = item.width * scale;
+      const itemDepthPx = item.depth * scale;
+
+      // Furniture body
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.4)';
+      ctx.strokeStyle = '#8b5cf6';
+      ctx.lineWidth = 2;
+      ctx.fillRect(-itemWidthPx / 2, -itemDepthPx / 2, itemWidthPx, itemDepthPx);
+      ctx.strokeRect(-itemWidthPx / 2, -itemDepthPx / 2, itemWidthPx, itemDepthPx);
+
+      // Furniture icon/label
+      ctx.rotate(-rad);
+      ctx.fillStyle = '#c4b5fd';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(item.name || item.type, 0, 3);
+
+      ctx.restore();
+    });
+
+    // Draw detected targets
+    targets.forEach((target) => {
+      const targetPos = cmToCanvas(target.x, target.y);
+
+      // Outer glow
+      const gradient = ctx.createRadialGradient(
+        targetPos.cx, targetPos.cy, 0,
+        targetPos.cx, targetPos.cy, 20
+      );
+      gradient.addColorStop(0, 'rgba(34, 197, 94, 0.6)');
+      gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(targetPos.cx, targetPos.cy, 20, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Target point
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(targetPos.cx, targetPos.cy, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Target ID
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${target.id}`, targetPos.cx, targetPos.cy + 3);
+    });
+
     // Draw sensor
     ctx.fillStyle = '#f59e0b';
     ctx.beginPath();
@@ -163,7 +249,7 @@ export function TopDownView({ room, zone, onZoneChange, units }: TopDownViewProp
     ctx.fillText("Switch's Left", offsetX + 4, padding + roomDepthPx - 4);
     ctx.textAlign = 'right';
     ctx.fillText("Switch's Right", offsetX + roomWidthPx - 4, padding + roomDepthPx - 4);
-  }, [room, zone, getScale, cmToCanvas, toDisplay]);
+  }, [room, zone, getScale, cmToCanvas, toDisplay, targets, obstacles, furniture]);
 
   useEffect(() => {
     draw();

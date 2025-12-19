@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { HADevice, HAEntityState, ZoneBounds, DetectionSettings } from '../types';
+import { HADevice, HAEntityState, ZoneBounds, DetectionSettings, Target } from '../types';
 
 interface UseHomeAssistantOptions {
   url: string;
@@ -32,11 +32,21 @@ const ENTITY_PATTERNS = {
   holdTime: /_mmwave_hold_time$/,
 };
 
+// Target tracking entity patterns (supports up to 4 targets)
+const TARGET_PATTERNS = {
+  x: /_target_(\d+)_x$/,
+  y: /_target_(\d+)_y$/,
+  z: /_target_(\d+)_z$/,
+  speed: /_target_(\d+)_speed$/,
+  active: /_target_(\d+)_active$/,
+};
+
 export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [devices, setDevices] = useState<HADevice[]>([]);
   const [entityStates, setEntityStates] = useState<Map<string, HAEntityState>>(new Map());
+  const [targets, setTargets] = useState<Target[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -291,6 +301,46 @@ export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
     [isConnected, sendMessage]
   );
 
+  // Update targets from entity states
+  const updateTargets = useCallback((states: Map<string, HAEntityState>) => {
+    const targetData: Map<number, Partial<Target>> = new Map();
+
+    states.forEach((state, entityId) => {
+      // Check if this is a target entity
+      for (const [field, pattern] of Object.entries(TARGET_PATTERNS)) {
+        const match = entityId.match(pattern);
+        if (match) {
+          const targetId = parseInt(match[1], 10);
+          if (!targetData.has(targetId)) {
+            targetData.set(targetId, { id: targetId, x: 0, y: 0, z: 0, active: false });
+          }
+          const target = targetData.get(targetId)!;
+
+          if (field === 'active') {
+            target.active = state.state === 'on' || state.state === 'true' || state.state === '1';
+          } else {
+            const value = parseFloat(state.state);
+            if (!isNaN(value)) {
+              (target as Record<string, unknown>)[field] = value;
+            }
+          }
+        }
+      }
+    });
+
+    // Convert to array and filter active targets
+    const activeTargets = Array.from(targetData.values())
+      .filter((t): t is Target =>
+        t.id !== undefined &&
+        t.x !== undefined &&
+        t.y !== undefined &&
+        t.z !== undefined &&
+        t.active === true
+      );
+
+    setTargets(activeTargets);
+  }, []);
+
   // Auto-discover devices when connected
   useEffect(() => {
     if (isConnected) {
@@ -298,10 +348,16 @@ export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
     }
   }, [isConnected, discoverDevices]);
 
+  // Update targets whenever entity states change
+  useEffect(() => {
+    updateTargets(entityStates);
+  }, [entityStates, updateTargets]);
+
   return {
     isConnected,
     isLoading,
     devices,
+    targets,
     error,
     connect,
     disconnect,

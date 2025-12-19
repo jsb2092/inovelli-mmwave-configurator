@@ -4,6 +4,7 @@ import { TopDownView } from './components/TopDownView';
 import { SideView } from './components/SideView';
 import { ZoneControls } from './components/ZoneControls';
 import { DeviceSelector } from './components/DeviceSelector';
+import { RoomObjects } from './components/RoomObjects';
 import { useHomeAssistant } from './hooks/useHomeAssistant';
 import {
   RoomDimensions,
@@ -11,6 +12,8 @@ import {
   DetectionSettings,
   HADevice,
   UnitSystem,
+  RoomObstacle,
+  FurnitureItem,
   DEFAULT_ROOM,
   DEFAULT_ZONE,
   DEFAULT_DETECTION,
@@ -41,12 +44,15 @@ function App() {
   const [units, setUnits] = useState<UnitSystem>(() => {
     return (localStorage.getItem('units') as UnitSystem) || 'imperial';
   });
+  const [obstacles, setObstacles] = useState<RoomObstacle[]>([]);
+  const [furniture, setFurniture] = useState<FurnitureItem[]>([]);
 
   // Home Assistant connection
   const {
     isConnected,
     isLoading,
     devices,
+    targets,
     error,
     connect,
     disconnect,
@@ -256,12 +262,27 @@ function App() {
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Canvas Views */}
-          <TopDownView room={room} zone={zone} onZoneChange={setZone} units={units} />
-          <SideView room={room} zone={zone} onZoneChange={setZone} units={units} />
+          <TopDownView
+            room={room}
+            zone={zone}
+            onZoneChange={setZone}
+            units={units}
+            targets={targets}
+            obstacles={obstacles}
+            furniture={furniture}
+          />
+          <SideView
+            room={room}
+            zone={zone}
+            onZoneChange={setZone}
+            units={units}
+            targets={targets}
+            furniture={furniture}
+          />
         </div>
 
         {/* Controls */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
           <RoomSetup room={room} onChange={setRoom} units={units} />
           <div className="md:col-span-2">
             <ZoneControls
@@ -272,6 +293,13 @@ function App() {
               units={units}
             />
           </div>
+          <RoomObjects
+            obstacles={obstacles}
+            furniture={furniture}
+            onObstaclesChange={setObstacles}
+            onFurnitureChange={setFurniture}
+            units={units}
+          />
         </div>
 
         {/* Action Buttons */}

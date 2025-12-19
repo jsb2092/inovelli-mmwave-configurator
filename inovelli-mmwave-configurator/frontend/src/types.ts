@@ -88,3 +88,51 @@ export const DEFAULT_DETECTION: DetectionSettings = {
   delay: 1,
   holdTime: 30,
 };
+
+// Target tracking (detected people/objects)
+export interface Target {
+  id: number;
+  x: number;  // cm relative to sensor
+  y: number;  // cm depth from sensor
+  z: number;  // cm height relative to sensor
+  speed?: number;  // velocity
+  active: boolean;
+}
+
+// Room obstacles (walls, exclusion zones)
+export interface RoomObstacle {
+  id: string;
+  type: 'wall' | 'exclusion';
+  name: string;
+  // Top-down bounds
+  x1: number;  // cm from left wall
+  y1: number;  // cm depth from sensor wall
+  x2: number;
+  y2: number;
+  // Height bounds (optional - full height if not specified)
+  zMin?: number;
+  zMax?: number;
+}
+
+// Furniture items
+export interface FurnitureItem {
+  id: string;
+  type: 'couch' | 'bed' | 'desk' | 'table' | 'chair' | 'tv' | 'custom';
+  name: string;
+  x: number;  // cm from left wall (center point)
+  y: number;  // cm depth from sensor wall (center point)
+  width: number;  // cm
+  depth: number;  // cm
+  height: number; // cm
+  rotation: number; // degrees
+}
+
+export const FURNITURE_PRESETS: Record<string, { width: number; depth: number; height: number }> = {
+  couch: { width: 200, depth: 90, height: 85 },
+  bed: { width: 150, depth: 200, height: 55 },
+  desk: { width: 120, depth: 60, height: 75 },
+  table: { width: 180, depth: 90, height: 75 },
+  chair: { width: 50, depth: 50, height: 90 },
+  tv: { width: 120, depth: 10, height: 70 },
+  custom: { width: 100, depth: 100, height: 100 },
+};
