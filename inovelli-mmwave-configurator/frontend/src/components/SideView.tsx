@@ -166,10 +166,14 @@ export function SideView({ room, zone, onZoneChange, units, targets = [], furnit
     // Bottom handle (floor/zMin)
     ctx.fillRect((zoneNear.cx + zoneFar.cx) / 2 - handleSize / 2, zoneFar.cy - handleSize / 2, handleSize, handleSize);
 
-    // Draw furniture (side view - shows depth and height)
+    // Draw furniture (side view - shows depth and height, accounting for rotation)
     furniture.forEach((item) => {
-      const itemTop = absToCanvas(item.y - item.depth / 2, item.height);
-      const itemBottom = absToCanvas(item.y + item.depth / 2, 0);
+      // Calculate effective depth based on rotation (how much depth is visible from side)
+      const rad = (item.rotation * Math.PI) / 180;
+      const effectiveDepth = Math.abs(item.depth * Math.cos(rad)) + Math.abs(item.width * Math.sin(rad));
+
+      const itemTop = absToCanvas(item.y - effectiveDepth / 2, item.height);
+      const itemBottom = absToCanvas(item.y + effectiveDepth / 2, 0);
 
       const itemWidthPx = itemBottom.cx - itemTop.cx;
       const itemHeightPx = itemBottom.cy - itemTop.cy;

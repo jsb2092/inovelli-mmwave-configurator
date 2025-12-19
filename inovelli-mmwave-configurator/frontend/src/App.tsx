@@ -96,11 +96,11 @@ function App() {
         if (roomData) {
           setCurrentRoomId(lastRoomId);
           setRoom({
-            width: roomData.width,
-            depth: roomData.depth,
-            height: roomData.height,
-            sensorX: roomData.sensor_x,
-            sensorHeight: roomData.sensor_height,
+            width: roomData.width || DEFAULT_ROOM.width,
+            depth: roomData.depth || DEFAULT_ROOM.depth,
+            height: roomData.height || DEFAULT_ROOM.height,
+            sensorX: roomData.sensor_x ?? DEFAULT_ROOM.sensorX,
+            sensorHeight: roomData.sensor_height ?? DEFAULT_ROOM.sensorHeight,
           });
           if (roomData.obstacles) {
             setObstacles(roomData.obstacles.map(o => ({
@@ -135,11 +135,11 @@ function App() {
         if (roomData) {
           setCurrentRoomId(rooms[0].id);
           setRoom({
-            width: roomData.width,
-            depth: roomData.depth,
-            height: roomData.height,
-            sensorX: roomData.sensor_x,
-            sensorHeight: roomData.sensor_height,
+            width: roomData.width || DEFAULT_ROOM.width,
+            depth: roomData.depth || DEFAULT_ROOM.depth,
+            height: roomData.height || DEFAULT_ROOM.height,
+            sensorX: roomData.sensor_x ?? DEFAULT_ROOM.sensorX,
+            sensorHeight: roomData.sensor_height ?? DEFAULT_ROOM.sensorHeight,
           });
           if (roomData.obstacles) {
             setObstacles(roomData.obstacles.map(o => ({
