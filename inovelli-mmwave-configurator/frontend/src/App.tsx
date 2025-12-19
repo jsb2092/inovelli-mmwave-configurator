@@ -228,6 +228,19 @@ function App() {
     }
   }, []);
 
+  // Auto-select first device when devices are discovered
+  useEffect(() => {
+    if (devices.length > 0 && !selectedDevice) {
+      const firstDevice = devices[0];
+      setSelectedDevice(firstDevice);
+      const values = readDeviceValues(firstDevice);
+      if (values) {
+        setZone(values.zone);
+        setDetection(values.detection);
+      }
+    }
+  }, [devices, selectedDevice, readDeviceValues]);
+
   // Read device values when device is selected
   const handleReadFromDevice = () => {
     if (!selectedDevice) return;
