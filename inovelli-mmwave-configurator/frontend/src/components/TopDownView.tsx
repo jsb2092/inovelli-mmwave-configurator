@@ -1,5 +1,11 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { RoomDimensions, ZoneBounds, UnitSystem, cmToInches, Target, RoomObstacle, FurnitureItem } from '../types';
+import { RoomDimensions, ZoneBounds, UnitSystem, cmToInches, Target, RoomObstacle, FurnitureItem, SensorPosition, HADevice } from '../types';
+
+interface SensorInRoom {
+  device: HADevice;
+  position: SensorPosition;
+  isSelected: boolean;
+}
 
 interface TopDownViewProps {
   room: RoomDimensions;
@@ -11,17 +17,21 @@ interface TopDownViewProps {
   furniture?: FurnitureItem[];
   onObstaclesChange?: (obstacles: RoomObstacle[]) => void;
   onFurnitureChange?: (furniture: FurnitureItem[]) => void;
+  // Multi-sensor support
+  sensorsInRoom?: SensorInRoom[];
+  onSelectSensor?: (deviceId: string) => void;
 }
 
 type DragType =
   | { type: 'zone'; handle: 'left' | 'right' | 'top' | 'bottom' | 'move' }
   | { type: 'obstacle'; id: string; handle: 'move' | 'nw' | 'ne' | 'sw' | 'se' }
   | { type: 'furniture'; id: string }
+  | { type: 'sensor'; deviceId: string }
   | null;
 
 export function TopDownView({
   room, zone, onZoneChange, units, targets = [], obstacles = [], furniture = [],
-  onObstaclesChange, onFurnitureChange
+  onObstaclesChange, onFurnitureChange, sensorsInRoom = [], onSelectSensor
 }: TopDownViewProps) {
   const isImperial = units === 'imperial';
   const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm)) : cm;
@@ -96,6 +106,45 @@ export function TopDownView({
       y: (cy - padding) / scale,
     };
   }, [room.width, getScale]);
+
+  // Get canvas position for a sensor based on wall and position along wall
+  const getSensorCanvasPos = useCallback((sensorPos: SensorPosition) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { cx: 0, cy: 0, rotation: 0 };
+    const scale = getScale();
+    const roomWidthPx = room.width * scale;
+    const roomDepthPx = room.depth * scale;
+    const offsetX = (canvas.width - roomWidthPx) / 2;
+
+    switch (sensorPos.wall) {
+      case 'top':
+        return {
+          cx: offsetX + (room.width - sensorPos.position) * scale,
+          cy: padding,
+          rotation: 0,
+        };
+      case 'bottom':
+        return {
+          cx: offsetX + sensorPos.position * scale,
+          cy: padding + roomDepthPx,
+          rotation: Math.PI,
+        };
+      case 'left':
+        return {
+          cx: offsetX + roomWidthPx,
+          cy: padding + sensorPos.position * scale,
+          rotation: -Math.PI / 2,
+        };
+      case 'right':
+        return {
+          cx: offsetX,
+          cy: padding + (room.depth - sensorPos.position) * scale,
+          rotation: Math.PI / 2,
+        };
+      default:
+        return { cx: offsetX + roomWidthPx / 2, cy: padding, rotation: 0 };
+    }
+  }, [room.width, room.depth, getScale]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -245,21 +294,59 @@ export function TopDownView({
       ctx.fillText(`${target.id}`, targetPos.cx, targetPos.cy + 3);
     });
 
-    // Draw sensor
-    ctx.fillStyle = '#f59e0b';
-    ctx.beginPath();
-    ctx.arc(sensorPos.cx, sensorPos.cy, sensorSize, 0, Math.PI * 2);
-    ctx.fill();
+    // Draw sensors
+    const drawSensor = (cx: number, cy: number, rotation: number, isSelected: boolean, label?: string) => {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(rotation);
 
-    ctx.strokeStyle = '#f59e0b';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(sensorPos.cx, sensorPos.cy + 5);
-    ctx.lineTo(sensorPos.cx, sensorPos.cy + 25);
-    ctx.lineTo(sensorPos.cx - 6, sensorPos.cy + 18);
-    ctx.moveTo(sensorPos.cx, sensorPos.cy + 25);
-    ctx.lineTo(sensorPos.cx + 6, sensorPos.cy + 18);
-    ctx.stroke();
+      // Sensor circle
+      ctx.fillStyle = isSelected ? '#f59e0b' : '#94a3b8';
+      ctx.beginPath();
+      ctx.arc(0, 0, sensorSize, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Selection ring for selected sensor
+      if (isSelected) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, sensorSize + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Direction arrow (pointing into room)
+      ctx.strokeStyle = isSelected ? '#f59e0b' : '#94a3b8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 5);
+      ctx.lineTo(0, 25);
+      ctx.lineTo(-6, 18);
+      ctx.moveTo(0, 25);
+      ctx.lineTo(6, 18);
+      ctx.stroke();
+
+      ctx.restore();
+
+      // Label (drawn without rotation)
+      if (label) {
+        ctx.fillStyle = isSelected ? '#fbbf24' : '#64748b';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, cx, cy - 12);
+      }
+    };
+
+    // If we have multiple sensors, draw them all
+    if (sensorsInRoom.length > 0) {
+      sensorsInRoom.forEach((sensor) => {
+        const pos = getSensorCanvasPos(sensor.position);
+        drawSensor(pos.cx, pos.cy, pos.rotation, sensor.isSelected, sensor.device.name);
+      });
+    } else {
+      // Legacy: draw single sensor from room.sensorX
+      drawSensor(sensorPos.cx, sensorPos.cy, 0, true);
+    }
 
     // Labels
     ctx.fillStyle = '#94a3b8';
@@ -282,7 +369,7 @@ export function TopDownView({
     ctx.fillText("Switch's Right", offsetX + 4, padding + roomDepthPx - 4);
     ctx.textAlign = 'right';
     ctx.fillText("Switch's Left", offsetX + roomWidthPx - 4, padding + roomDepthPx - 4);
-  }, [room, zone, getScale, cmToCanvas, absToCanvas, toDisplay, targets, obstacles, furniture]);
+  }, [room, zone, getScale, cmToCanvas, absToCanvas, toDisplay, targets, obstacles, furniture, sensorsInRoom, getSensorCanvasPos]);
 
   useEffect(() => {
     draw();
@@ -291,7 +378,16 @@ export function TopDownView({
   const getObjectAtPosition = (cx: number, cy: number): { drag: DragType; cursor: string } => {
     const hitSize = 12;
 
-    // Check furniture first (on top)
+    // Check sensors first (highest priority for selection)
+    for (const sensor of sensorsInRoom) {
+      const pos = getSensorCanvasPos(sensor.position);
+      const dist = Math.sqrt((cx - pos.cx) ** 2 + (cy - pos.cy) ** 2);
+      if (dist < sensorSize + hitSize) {
+        return { drag: { type: 'sensor', deviceId: sensor.device.id }, cursor: 'pointer' };
+      }
+    }
+
+    // Check furniture (on top)
     for (let i = furniture.length - 1; i >= 0; i--) {
       const item = furniture[i];
       const center = absToCanvas(item.x, item.y);
@@ -377,6 +473,14 @@ export function TopDownView({
 
     const { drag } = getObjectAtPosition(cx, cy);
     if (drag) {
+      // Sensor clicks select the device, not drag
+      if (drag.type === 'sensor') {
+        if (onSelectSensor) {
+          onSelectSensor(drag.deviceId);
+        }
+        return;
+      }
+
       setDragType(drag);
       setDragStart({ x: cx, y: cy });
 

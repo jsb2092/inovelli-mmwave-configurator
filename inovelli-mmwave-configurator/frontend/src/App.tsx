@@ -15,6 +15,7 @@ import {
   UnitSystem,
   RoomObstacle,
   FurnitureItem,
+  SensorPosition,
   DEFAULT_ROOM,
   DEFAULT_ZONE,
   DEFAULT_DETECTION,
@@ -54,6 +55,9 @@ function App() {
   const saveTimeoutRef = useRef<number | null>(null);
   const prevSensorXRef = useRef<number>(DEFAULT_ROOM.sensorX);
 
+  // Per-device sensor positions (deviceId -> position)
+  const [sensorPositions, setSensorPositions] = useState<Record<string, SensorPosition>>({});
+
   // Home Assistant connection
   const {
     isConnected,
@@ -68,6 +72,28 @@ function App() {
     writeDeviceValues,
   } = useHomeAssistant({ url: haUrl, token: haToken });
 
+  // Get all devices in the current room (same areaName)
+  const devicesInRoom = devices.filter(d => d.areaName === currentRoomName);
+
+  // Get sensor position for a device (with default)
+  const getSensorPosition = useCallback((deviceId: string): SensorPosition => {
+    return sensorPositions[deviceId] || {
+      wall: 'top',
+      position: room.width / 2,  // Default to center of top wall
+      height: 120,
+    };
+  }, [sensorPositions, room.width]);
+
+  // Update sensor position for a device
+  const updateSensorPosition = useCallback((deviceId: string, position: SensorPosition) => {
+    setSensorPositions(prev => {
+      const updated = { ...prev, [deviceId]: position };
+      // Save to settings
+      saveSetting('sensorPositions', updated);
+      return updated;
+    });
+  }, []);
+
   // Status message
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -81,6 +107,17 @@ function App() {
   useEffect(() => {
     localStorage.setItem('units', units);
   }, [units]);
+
+  // Load sensor positions on mount
+  useEffect(() => {
+    const loadSensorPositions = async () => {
+      const positions = await getSetting<Record<string, SensorPosition>>('sensorPositions');
+      if (positions) {
+        setSensorPositions(positions);
+      }
+    };
+    loadSensorPositions();
+  }, []);
 
   // Load rooms from database on mount
   useEffect(() => {
@@ -576,6 +613,22 @@ function App() {
             furniture={furniture}
             onObstaclesChange={setObstacles}
             onFurnitureChange={setFurniture}
+            sensorsInRoom={devicesInRoom.map(device => ({
+              device,
+              position: getSensorPosition(device.id),
+              isSelected: device.id === selectedDevice?.id,
+            }))}
+            onSelectSensor={(deviceId) => {
+              const device = devices.find(d => d.id === deviceId);
+              if (device) {
+                setSelectedDevice(device);
+                const values = readDeviceValues(device);
+                if (values) {
+                  setZone(values.zone);
+                  setDetection(values.detection);
+                }
+              }
+            }}
           />
           <SideView
             room={room}
@@ -590,7 +643,14 @@ function App() {
 
         {/* Controls */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <RoomSetup room={room} onChange={setRoom} units={units} />
+          <RoomSetup
+            room={room}
+            onChange={setRoom}
+            units={units}
+            sensorPosition={selectedDevice ? getSensorPosition(selectedDevice.id) : undefined}
+            onSensorPositionChange={selectedDevice ? (pos) => updateSensorPosition(selectedDevice.id, pos) : undefined}
+            selectedDeviceName={selectedDevice?.name}
+          />
           <div className="md:col-span-2">
             <ZoneControls
               zone={zone}

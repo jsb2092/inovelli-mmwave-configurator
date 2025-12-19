@@ -2,8 +2,16 @@ export interface RoomDimensions {
   width: number;  // cm
   depth: number;  // cm
   height: number; // cm
+  // Legacy per-room sensor position (kept for backward compatibility)
   sensorHeight: number; // cm from floor
   sensorX: number; // cm from left wall (0 = left edge, width = right edge)
+}
+
+// Sensor position stored per-device
+export interface SensorPosition {
+  wall: 'top' | 'right' | 'bottom' | 'left';  // Which wall the sensor is on
+  position: number;  // cm along the wall (0 = left/top corner of that wall)
+  height: number;    // cm from floor
 }
 
 export interface ZoneBounds {
