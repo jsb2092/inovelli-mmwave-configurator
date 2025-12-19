@@ -15,15 +15,22 @@ import {
   DEFAULT_DETECTION,
 } from './types';
 
+function getDefaultWsUrl(): string {
+  const stored = localStorage.getItem('ha_url');
+  if (stored) return stored;
+
+  // Auto-detect WebSocket URL based on current location
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}/api/websocket`;
+}
+
 function App() {
   // Connection settings
-  const [haUrl, setHaUrl] = useState(() => {
-    return localStorage.getItem('ha_url') || 'ws://homeassistant.local:8123/api/websocket';
-  });
+  const [haUrl, setHaUrl] = useState(getDefaultWsUrl);
   const [haToken, setHaToken] = useState(() => {
     return localStorage.getItem('ha_token') || '';
   });
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(!localStorage.getItem('ha_token'));
 
   // Room and zone state
   const [room, setRoom] = useState<RoomDimensions>(DEFAULT_ROOM);
@@ -134,13 +141,24 @@ function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm text-slate-400 mb-1">WebSocket URL</label>
-                <input
-                  type="text"
-                  value={haUrl}
-                  onChange={(e) => setHaUrl(e.target.value)}
-                  placeholder="ws://homeassistant.local:8123/api/websocket"
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={haUrl}
+                    onChange={(e) => setHaUrl(e.target.value)}
+                    className="flex-1 bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem('ha_url');
+                      setHaUrl(getDefaultWsUrl());
+                    }}
+                    className="px-3 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded text-sm"
+                    title="Reset to auto-detected URL"
+                  >
+                    Auto
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-slate-400 mb-1">Long-Lived Access Token</label>
