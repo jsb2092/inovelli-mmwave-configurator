@@ -144,12 +144,14 @@ export function useHomeAssistant({ url, token }: UseHomeAssistantOptions) {
       // Get all states
       const states = (await sendMessage({ type: 'get_states' })) as HAEntityState[];
 
-      // Find mmWave entities
+      // Find mmWave entities - look for any entity containing 'mmwave'
       const mmwaveEntities = states.filter(
         (state) =>
-          state.entity_id.startsWith('number.') &&
-          state.entity_id.includes('_mmwave_')
+          state.entity_id.toLowerCase().includes('mmwave')
       );
+
+      // Debug: log all found mmWave entities
+      console.log('Found mmWave entities:', mmwaveEntities.map(e => e.entity_id));
 
       // Update entity states
       const newStates = new Map<string, HAEntityState>();
