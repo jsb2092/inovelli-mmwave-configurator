@@ -20,11 +20,18 @@ let db;
 async function initDb() {
   const SQL = await initSqlJs();
 
+  console.log(`Database path: ${DB_PATH}`);
+  console.log(`Data directory exists: ${fs.existsSync(DATA_DIR)}`);
+  console.log(`Database file exists: ${fs.existsSync(DB_PATH)}`);
+
   // Load existing database or create new one
   if (fs.existsSync(DB_PATH)) {
+    console.log('Loading existing database...');
     const fileBuffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(fileBuffer);
+    console.log('Database loaded successfully');
   } else {
+    console.log('Creating new database...');
     db = new SQL.Database();
   }
 

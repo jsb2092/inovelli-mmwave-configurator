@@ -51,6 +51,7 @@ function App() {
   const [_savedRooms, setSavedRooms] = useState<RoomRecord[]>([]); // TODO: Add room selector UI
   const [isLoadingRoom, setIsLoadingRoom] = useState(true);
   const saveTimeoutRef = useRef<number | null>(null);
+  const prevSensorXRef = useRef<number>(DEFAULT_ROOM.sensorX);
 
   // Home Assistant connection
   const {
@@ -94,14 +95,16 @@ function App() {
         // Load the last used room
         const roomData = await getRoom(lastRoomId);
         if (roomData) {
+          const loadedSensorX = roomData.sensor_x ?? DEFAULT_ROOM.sensorX;
           setCurrentRoomId(lastRoomId);
           setRoom({
             width: roomData.width || DEFAULT_ROOM.width,
             depth: roomData.depth || DEFAULT_ROOM.depth,
             height: roomData.height || DEFAULT_ROOM.height,
-            sensorX: roomData.sensor_x ?? DEFAULT_ROOM.sensorX,
+            sensorX: loadedSensorX,
             sensorHeight: roomData.sensor_height ?? DEFAULT_ROOM.sensorHeight,
           });
+          prevSensorXRef.current = loadedSensorX;
           if (roomData.obstacles) {
             setObstacles(roomData.obstacles.map(o => ({
               id: `obstacle-${o.id}`,
@@ -133,14 +136,16 @@ function App() {
         // Use the most recent room
         const roomData = await getRoom(rooms[0].id);
         if (roomData) {
+          const loadedSensorX = roomData.sensor_x ?? DEFAULT_ROOM.sensorX;
           setCurrentRoomId(rooms[0].id);
           setRoom({
             width: roomData.width || DEFAULT_ROOM.width,
             depth: roomData.depth || DEFAULT_ROOM.depth,
             height: roomData.height || DEFAULT_ROOM.height,
-            sensorX: roomData.sensor_x ?? DEFAULT_ROOM.sensorX,
+            sensorX: loadedSensorX,
             sensorHeight: roomData.sensor_height ?? DEFAULT_ROOM.sensorHeight,
           });
+          prevSensorXRef.current = loadedSensorX;
           if (roomData.obstacles) {
             setObstacles(roomData.obstacles.map(o => ({
               id: `obstacle-${o.id}`,
@@ -180,6 +185,7 @@ function App() {
         });
         if (newRoomId) {
           setCurrentRoomId(newRoomId);
+          prevSensorXRef.current = DEFAULT_ROOM.sensorX;
           setSavedRooms([{
             id: newRoomId,
             name: 'Default Room',
@@ -195,6 +201,25 @@ function App() {
     };
     loadRooms();
   }, []);
+
+  // Recalculate zone bounds when sensor position changes (keep zone in same room position)
+  useEffect(() => {
+    if (isLoadingRoom) return;
+
+    const prevSensorX = prevSensorXRef.current;
+    const currentSensorX = room.sensorX;
+
+    if (prevSensorX !== currentSensorX) {
+      const delta = currentSensorX - prevSensorX;
+      // Adjust zone bounds by negative delta so zone stays in same room position
+      setZone(prev => ({
+        ...prev,
+        xMin: prev.xMin - delta,
+        xMax: prev.xMax - delta,
+      }));
+      prevSensorXRef.current = currentSensorX;
+    }
+  }, [room.sensorX, isLoadingRoom]);
 
   // Auto-save room changes to database (debounced)
   const saveRoomToDb = useCallback(async () => {

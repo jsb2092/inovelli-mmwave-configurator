@@ -17,10 +17,7 @@ COPY server/package*.json ./
 RUN npm ci
 COPY server/ ./
 
-# Create data directory for SQLite
-RUN mkdir -p /data
-
-WORKDIR /app/server
+# Note: /data directory is automatically provided and persisted by Home Assistant
 
 ENV PORT=8099
 ENV DATA_DIR=/data
