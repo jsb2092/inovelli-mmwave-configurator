@@ -1,4 +1,5 @@
 import { RoomDimensions, UnitSystem, cmToInches, inchesToCm } from '../types';
+import { NumberInput } from './NumberInput';
 
 interface RoomSetupProps {
   room: RoomDimensions;
@@ -13,12 +14,11 @@ export function RoomSetup({ room, onChange, units }: RoomSetupProps) {
   const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm) * 10) / 10 : cm;
   const fromDisplay = (value: number) => isImperial ? inchesToCm(value) : value;
 
-  const handleChange = (field: keyof RoomDimensions, value: string) => {
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue)) {
-      onChange({ ...room, [field]: Math.round(fromDisplay(numValue)) });
-    }
+  const handleChange = (field: keyof RoomDimensions, value: number) => {
+    onChange({ ...room, [field]: Math.round(fromDisplay(value)) });
   };
+
+  const inputClass = "w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500";
 
   return (
     <div className="bg-slate-800 rounded-lg p-4">
@@ -26,42 +26,34 @@ export function RoomSetup({ room, onChange, units }: RoomSetupProps) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-slate-400 mb-1">Width ({unitLabel})</label>
-          <input
-            type="number"
-            step={isImperial ? "0.5" : "1"}
+          <NumberInput
             value={toDisplay(room.width)}
-            onChange={(e) => handleChange('width', e.target.value)}
-            className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+            onChange={(v) => handleChange('width', v)}
+            className={inputClass}
           />
         </div>
         <div>
           <label className="block text-xs text-slate-400 mb-1">Depth ({unitLabel})</label>
-          <input
-            type="number"
-            step={isImperial ? "0.5" : "1"}
+          <NumberInput
             value={toDisplay(room.depth)}
-            onChange={(e) => handleChange('depth', e.target.value)}
-            className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+            onChange={(v) => handleChange('depth', v)}
+            className={inputClass}
           />
         </div>
         <div>
           <label className="block text-xs text-slate-400 mb-1">Height ({unitLabel})</label>
-          <input
-            type="number"
-            step={isImperial ? "0.5" : "1"}
+          <NumberInput
             value={toDisplay(room.height)}
-            onChange={(e) => handleChange('height', e.target.value)}
-            className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+            onChange={(v) => handleChange('height', v)}
+            className={inputClass}
           />
         </div>
         <div>
           <label className="block text-xs text-slate-400 mb-1">Sensor Height ({unitLabel})</label>
-          <input
-            type="number"
-            step={isImperial ? "0.5" : "1"}
+          <NumberInput
             value={toDisplay(room.sensorHeight)}
-            onChange={(e) => handleChange('sensorHeight', e.target.value)}
-            className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+            onChange={(v) => handleChange('sensorHeight', v)}
+            className={inputClass}
           />
         </div>
         <div className="col-span-2">

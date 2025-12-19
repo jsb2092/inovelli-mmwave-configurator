@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { RoomObstacle, FurnitureItem, UnitSystem, cmToInches, inchesToCm, FURNITURE_PRESETS } from '../types';
+import { NumberInput } from './NumberInput';
 
 interface RoomObjectsProps {
   obstacles: RoomObstacle[];
@@ -75,6 +76,8 @@ export function RoomObjects({
     );
   };
 
+  const smallInputClass = "w-full bg-slate-700 rounded px-1 py-0.5 text-white text-xs";
+
   return (
     <div className="space-y-4">
       {/* Obstacles Section */}
@@ -138,54 +141,42 @@ export function RoomObjects({
                 <div className="grid grid-cols-4 gap-2 text-xs">
                   <div>
                     <label className="text-slate-500">X1</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(obstacle.x1)}
-                      onChange={(e) =>
-                        updateObstacle(obstacle.id, {
-                          x1: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateObstacle(obstacle.id, { x1: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                   <div>
                     <label className="text-slate-500">Y1</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(obstacle.y1)}
-                      onChange={(e) =>
-                        updateObstacle(obstacle.id, {
-                          y1: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateObstacle(obstacle.id, { y1: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                   <div>
                     <label className="text-slate-500">X2</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(obstacle.x2)}
-                      onChange={(e) =>
-                        updateObstacle(obstacle.id, {
-                          x2: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateObstacle(obstacle.id, { x2: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                   <div>
                     <label className="text-slate-500">Y2</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(obstacle.y2)}
-                      onChange={(e) =>
-                        updateObstacle(obstacle.id, {
-                          y2: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateObstacle(obstacle.id, { y2: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                 </div>
@@ -249,82 +240,64 @@ export function RoomObjects({
                 <div className="grid grid-cols-3 gap-2 text-xs mb-2">
                   <div>
                     <label className="text-slate-500">X ({unitLabel})</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(item.x)}
-                      onChange={(e) =>
-                        updateFurniture(item.id, {
-                          x: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateFurniture(item.id, { x: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                   <div>
                     <label className="text-slate-500">Y ({unitLabel})</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(item.y)}
-                      onChange={(e) =>
-                        updateFurniture(item.id, {
-                          y: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateFurniture(item.id, { y: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                   <div>
                     <label className="text-slate-500">Rotation</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={item.rotation}
-                      onChange={(e) =>
-                        updateFurniture(item.id, {
-                          rotation: parseInt(e.target.value, 10) || 0,
-                        })
+                      onChange={(v) =>
+                        updateFurniture(item.id, { rotation: Math.round(v) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div>
                     <label className="text-slate-500">W ({unitLabel})</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(item.width)}
-                      onChange={(e) =>
-                        updateFurniture(item.id, {
-                          width: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateFurniture(item.id, { width: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                   <div>
                     <label className="text-slate-500">D ({unitLabel})</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(item.depth)}
-                      onChange={(e) =>
-                        updateFurniture(item.id, {
-                          depth: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateFurniture(item.id, { depth: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                   <div>
                     <label className="text-slate-500">H ({unitLabel})</label>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={toDisplay(item.height)}
-                      onChange={(e) =>
-                        updateFurniture(item.id, {
-                          height: fromDisplay(parseFloat(e.target.value) || 0),
-                        })
+                      onChange={(v) =>
+                        updateFurniture(item.id, { height: Math.round(fromDisplay(v)) })
                       }
-                      className="w-full bg-slate-700 rounded px-1 py-0.5 text-white"
+                      className={smallInputClass}
                     />
                   </div>
                 </div>

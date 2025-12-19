@@ -1,4 +1,5 @@
 import { ZoneBounds, DetectionSettings, UnitSystem, SENSITIVITY_LABELS, DELAY_LABELS, cmToInches, inchesToCm } from '../types';
+import { NumberInput } from './NumberInput';
 
 interface ZoneControlsProps {
   zone: ZoneBounds;
@@ -15,16 +16,15 @@ export function ZoneControls({ zone, detection, onZoneChange, onDetectionChange,
   const toDisplay = (cm: number) => isImperial ? Math.round(cmToInches(cm) * 10) / 10 : cm;
   const fromDisplay = (value: number) => isImperial ? inchesToCm(value) : value;
 
-  const handleZoneChange = (field: keyof ZoneBounds, value: string) => {
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue)) {
-      onZoneChange({ ...zone, [field]: Math.round(fromDisplay(numValue)) });
-    }
+  const handleZoneChange = (field: keyof ZoneBounds, value: number) => {
+    onZoneChange({ ...zone, [field]: Math.round(fromDisplay(value)) });
   };
 
   const handleHoldTimeChange = (value: number) => {
     onDetectionChange({ ...detection, holdTime: Math.max(1, Math.min(300, value)) });
   };
+
+  const inputClass = "w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500";
 
   return (
     <div className="space-y-4">
@@ -34,62 +34,50 @@ export function ZoneControls({ zone, detection, onZoneChange, onDetectionChange,
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-slate-400 mb-1">X Min (Left)</label>
-            <input
-              type="number"
-              step={isImperial ? "0.5" : "1"}
+            <NumberInput
               value={toDisplay(zone.xMin)}
-              onChange={(e) => handleZoneChange('xMin', e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+              onChange={(v) => handleZoneChange('xMin', v)}
+              className={inputClass}
             />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">X Max (Right)</label>
-            <input
-              type="number"
-              step={isImperial ? "0.5" : "1"}
+            <NumberInput
               value={toDisplay(zone.xMax)}
-              onChange={(e) => handleZoneChange('xMax', e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+              onChange={(v) => handleZoneChange('xMax', v)}
+              className={inputClass}
             />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Y Min (Near)</label>
-            <input
-              type="number"
-              step={isImperial ? "0.5" : "1"}
+            <NumberInput
               value={toDisplay(zone.yMin)}
-              onChange={(e) => handleZoneChange('yMin', e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+              onChange={(v) => handleZoneChange('yMin', v)}
+              className={inputClass}
             />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Y Max (Far)</label>
-            <input
-              type="number"
-              step={isImperial ? "0.5" : "1"}
+            <NumberInput
               value={toDisplay(zone.yMax)}
-              onChange={(e) => handleZoneChange('yMax', e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+              onChange={(v) => handleZoneChange('yMax', v)}
+              className={inputClass}
             />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Z Min (Floor)</label>
-            <input
-              type="number"
-              step={isImperial ? "0.5" : "1"}
+            <NumberInput
               value={toDisplay(zone.zMin)}
-              onChange={(e) => handleZoneChange('zMin', e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+              onChange={(v) => handleZoneChange('zMin', v)}
+              className={inputClass}
             />
           </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Z Max (Ceiling)</label>
-            <input
-              type="number"
-              step={isImperial ? "0.5" : "1"}
+            <NumberInput
               value={toDisplay(zone.zMax)}
-              onChange={(e) => handleZoneChange('zMax', e.target.value)}
-              className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
+              onChange={(v) => handleZoneChange('zMax', v)}
+              className={inputClass}
             />
           </div>
         </div>
