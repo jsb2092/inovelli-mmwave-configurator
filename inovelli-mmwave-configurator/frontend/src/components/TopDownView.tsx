@@ -306,11 +306,15 @@ export function TopDownView({
       }
     }
 
-    // Check obstacles
+    // Check obstacles (note: with mirrored X, pos1.cx may be > pos2.cx)
     for (let i = obstacles.length - 1; i >= 0; i--) {
       const obs = obstacles[i];
       const pos1 = absToCanvas(obs.x1, obs.y1);
       const pos2 = absToCanvas(obs.x2, obs.y2);
+      const obsMinX = Math.min(pos1.cx, pos2.cx);
+      const obsMaxX = Math.max(pos1.cx, pos2.cx);
+      const obsMinY = Math.min(pos1.cy, pos2.cy);
+      const obsMaxY = Math.max(pos1.cy, pos2.cy);
 
       // Check corner handles
       if (Math.abs(cx - pos1.cx) < hitSize && Math.abs(cy - pos1.cy) < hitSize) {
@@ -327,14 +331,18 @@ export function TopDownView({
       }
 
       // Check inside for move
-      if (cx >= pos1.cx && cx <= pos2.cx && cy >= pos1.cy && cy <= pos2.cy) {
+      if (cx >= obsMinX && cx <= obsMaxX && cy >= obsMinY && cy <= obsMaxY) {
         return { drag: { type: 'obstacle', id: obs.id, handle: 'move' }, cursor: 'move' };
       }
     }
 
-    // Check zone handles
+    // Check zone handles (note: with mirrored X, zoneLeft.cx > zoneRight.cx)
     const zoneLeft = cmToCanvas(zone.xMin, zone.yMin);
     const zoneRight = cmToCanvas(zone.xMax, zone.yMax);
+    const zoneMinX = Math.min(zoneLeft.cx, zoneRight.cx);
+    const zoneMaxX = Math.max(zoneLeft.cx, zoneRight.cx);
+    const zoneMinY = Math.min(zoneLeft.cy, zoneRight.cy);
+    const zoneMaxY = Math.max(zoneLeft.cy, zoneRight.cy);
     const midX = (zoneLeft.cx + zoneRight.cx) / 2;
     const midY = (zoneLeft.cy + zoneRight.cy) / 2;
 
@@ -350,7 +358,7 @@ export function TopDownView({
     if (Math.abs(cx - midX) < hitSize && Math.abs(cy - zoneRight.cy) < hitSize) {
       return { drag: { type: 'zone', handle: 'bottom' }, cursor: 'ns-resize' };
     }
-    if (cx >= zoneLeft.cx && cx <= zoneRight.cx && cy >= zoneLeft.cy && cy <= zoneRight.cy) {
+    if (cx >= zoneMinX && cx <= zoneMaxX && cy >= zoneMinY && cy <= zoneMaxY) {
       return { drag: { type: 'zone', handle: 'move' }, cursor: 'move' };
     }
 
