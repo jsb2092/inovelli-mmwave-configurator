@@ -363,12 +363,36 @@ export function TopDownView({
       ctx.fillText(`${toDisplay(y)}`, offsetX - 8, cy + 4);
     }
 
+    // Draw left/right labels based on selected sensor's wall
+    const selectedSensor = sensorsInRoom.find(s => s.isSelected);
+    const selectedWall = selectedSensor?.position.wall || 'top';
+
     ctx.fillStyle = '#64748b';
     ctx.font = '10px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText("Switch's Right", offsetX + 4, padding + roomDepthPx - 4);
-    ctx.textAlign = 'right';
-    ctx.fillText("Switch's Left", offsetX + roomWidthPx - 4, padding + roomDepthPx - 4);
+
+    if (selectedWall === 'top') {
+      // Sensor at top looking down
+      ctx.textAlign = 'left';
+      ctx.fillText("Switch's Right", offsetX + 4, padding + roomDepthPx - 4);
+      ctx.textAlign = 'right';
+      ctx.fillText("Switch's Left", offsetX + roomWidthPx - 4, padding + roomDepthPx - 4);
+    } else if (selectedWall === 'bottom') {
+      // Sensor at bottom looking up
+      ctx.textAlign = 'left';
+      ctx.fillText("Switch's Left", offsetX + 4, padding + 12);
+      ctx.textAlign = 'right';
+      ctx.fillText("Switch's Right", offsetX + roomWidthPx - 4, padding + 12);
+    } else if (selectedWall === 'left') {
+      // Sensor on left looking right
+      ctx.textAlign = 'left';
+      ctx.fillText("Switch's Left", offsetX + roomWidthPx - 60, padding + 12);
+      ctx.fillText("Switch's Right", offsetX + roomWidthPx - 60, padding + roomDepthPx - 4);
+    } else if (selectedWall === 'right') {
+      // Sensor on right looking left
+      ctx.textAlign = 'left';
+      ctx.fillText("Switch's Right", offsetX + 4, padding + 12);
+      ctx.fillText("Switch's Left", offsetX + 4, padding + roomDepthPx - 4);
+    }
   }, [room, zone, getScale, cmToCanvas, absToCanvas, toDisplay, targets, obstacles, furniture, sensorsInRoom, getSensorCanvasPos]);
 
   useEffect(() => {
