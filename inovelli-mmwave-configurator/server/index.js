@@ -90,6 +90,16 @@ async function initDb() {
   `);
 
   saveDb();
+
+  // Log database contents on startup
+  const roomCount = queryAll('SELECT COUNT(*) as count FROM rooms')[0]?.count || 0;
+  const settingsCount = queryAll('SELECT COUNT(*) as count FROM settings')[0]?.count || 0;
+  console.log(`Database initialized: ${roomCount} rooms, ${settingsCount} settings`);
+
+  if (roomCount > 0) {
+    const rooms = queryAll('SELECT id, name, width, depth, height, sensor_x, sensor_height FROM rooms');
+    console.log('Existing rooms:', JSON.stringify(rooms));
+  }
 }
 
 function saveDb() {
@@ -144,6 +154,7 @@ app.put('/api/settings/:key', (req, res) => {
 // Rooms API
 app.get('/api/rooms', (req, res) => {
   const rooms = queryAll('SELECT * FROM rooms ORDER BY updated_at DESC');
+  console.log(`GET /api/rooms: returning ${rooms.length} rooms`);
   res.json(rooms);
 });
 
@@ -161,16 +172,19 @@ app.get('/api/rooms/:id', (req, res) => {
 
 app.post('/api/rooms', (req, res) => {
   const { name, width, depth, height, sensor_x, sensor_height } = req.body;
+  console.log(`POST /api/rooms: creating room`, { name, width, depth, height, sensor_x, sensor_height });
   const result = run(`
     INSERT INTO rooms (name, width, depth, height, sensor_x, sensor_height)
     VALUES (?, ?, ?, ?, ?, ?)
   `, [name || 'New Room', width || 400, depth || 500, height || 244, sensor_x || 200, sensor_height || 100]);
 
+  console.log(`POST /api/rooms: created room with id ${result.lastInsertRowid}`);
   res.json({ id: result.lastInsertRowid });
 });
 
 app.put('/api/rooms/:id', (req, res) => {
   const { name, width, depth, height, sensor_x, sensor_height, obstacles, furniture: furnitureItems } = req.body;
+  console.log(`PUT /api/rooms/${req.params.id}:`, { name, width, depth, height, sensor_x, sensor_height });
 
   run(`
     UPDATE rooms SET name = ?, width = ?, depth = ?, height = ?, sensor_x = ?, sensor_height = ?, updated_at = CURRENT_TIMESTAMP
